@@ -1,0 +1,24 @@
+{
+  "name": "un-cli",
+  "version": "0.0.48",
+  "description": "Command line interface for working with ArcGIS Utility Network",
+  "main": "index.mjs",
+  "bin": {
+    "uncli": "un.mjs"
+  },
+  "scripts": {
+    "start": "node un.mjs"
+  },
+  "keywords": [
+    "esri",
+    "ArcGIS",
+    "utility-network"
+  ],
+  "author": "Hussein Nasser",
+  "license": "ISC",
+  "dependencies": {
+    "node-fetch": "^2.6.0",
+    "progress": "^2.0.3",
+    "winston": "^3.2.1"
+  }
+}

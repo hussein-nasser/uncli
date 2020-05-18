@@ -1,0 +1,679 @@
+import readline from "readline"
+import  fs from "fs";
+import { Portal } from "./portal.mjs"
+import { UtilityNetwork } from "./utilitynetwork.node.mjs"
+import { logger } from "./logger.mjs"
+import  fetch  from "node-fetch"
+//update version
+let version = "0.0.48";
+const GENERATE_TOKEN_TIME_MIN = 10;
+
+let rl = null;
+
+
+//uncli --portal https://utilitynetwork.esri.com/portal --service AllStar_oracle --user unadmin --password unadmin.108
+let portal = null;
+let un  = null;
+
+
+//parse input for parameters 
+function parseInput(){
+
+      const parameters = [ 
+          "--portal"  ,
+          "--service" ,
+          "--user" ,
+          "--password",
+          "--command",
+          "--version",
+          "--file"
+           ]     
+
+      const params = {
+          "portal": null,
+          "service": null,
+          "user": null,
+          "password": null,
+          "command": "",
+          "version": "SDE.DEFAULT",
+          "file": ""
+      }
+
+      for (let i = 0; i < process.argv.length ; i++){
+            const a = process.argv[i];
+            //if the key is found in one of the parameters
+           
+            if (parameters.includes(a))
+                params[a.replace("--","")] = process.argv[i+1]            
+      }
+
+      if (Object.values(params).includes(null))
+      {
+        console.log ("HELP: uncli --portal https://unportal.domain.com/portal --service servicename --user username --password password --file commandfile*")    
+        console.log("--file commandfile is optional and you can pass a path to a file with a list of command to execute. ")
+        process.exit();
+      }
+     
+      return params;
+}
+
+//
+async function getToken(parameters) {
+    portal = new Portal(parameters.portal, parameters.user, parameters.password)
+    logger.info("About to connect..")
+    const token = await portal.connect()
+    logger.info(`Token ${token}`)
+    return token;
+}
+
+async function regenerateToken(parameters) {
+    console.log("Regenerating token.")
+    const token = await getToken(parameters);
+    un.token = token;
+    executeInput("clear");
+    //generate token every 10 minutes
+    setTimeout( async () => await regenerateToken(parameters), 1000*60*GENERATE_TOKEN_TIME_MIN ) 
+}
+
+
+//connect to the service
+async function connect(parameters) {
+    try{
+     //print the parameters
+    logger.info(parameters);
+    //connect to portal
+    
+    const token = await getToken(parameters);
+    const services = await portal.services();
+
+    //check if the service exists 
+    const service = services.services.find(s => s.name === parameters.service)
+    if (!service){
+        logger.error( `Service ${parameters.service} not found or user don't have permissions to view it`)
+        process.exit();
+    }
+
+    const serviceUrl =  portal.serverUrl + `/rest/services/${parameters.service}/FeatureServer`
+    un = new UtilityNetwork(token, serviceUrl)
+    console.log("Loading utility network...")
+    await un.load();
+    console.log("Connected.")
+    /*test here*/
+ 
+    //if user specified file path open it read all commands and execute them
+    const file =parameters.file;
+    const command = parameters.command;
+    if ( file != "") {
+        if (fs.existsSync(file)){
+            const commands = fs.readFileSync(file).toString().split("\r\n")
+            for (let i = 0; i < commands.length; i++) {
+                const c = commands[i];
+                await executeInput(c);
+            }
+            
+        }
+        else
+            console.error(`Cannot open specified file ${file}.`)
+      
+    } 
+    //execute one off command
+    if ( command != "")          
+        executeInput(command);
+         
+
+
+    askInput();
+
+    setTimeout( async ()=> await regenerateToken(parameters) , 1000*60*GENERATE_TOKEN_TIME_MIN)
+    }
+    catch(ex){
+        console.error(ex)
+        process.exit()
+    }
+}
+
+
+//list of inputs and commands to execute
+const inputs = {
+    "^ls$" : async () => {
+        const services = await portal.services();
+        //make unique
+        const uniqueServices = [...new Set(services.services.map(s => s.name))]   
+        console.table(uniqueServices)
+    },
+
+    "^help$": () => {
+
+        console.table({
+            "help": "Displays this help",
+            "version": "Displays the version of uncli",
+            "ls": "List all services",
+            "def": "Show the feature service definition",
+            "def -layers" : "List all layers in this service",
+            "subnetworks" : "Lists all subnetworks",
+            "subnetworks -d" : "Lists only dirty subnetworks",
+            "subnetworks -dd" : "Lists dirty and deleted subnetworks",
+            "topology" : "Displays the topology status",
+            "topology -disable" : "Disable topology",
+            "topology -enable" : "Enable topology",
+            "update subnetworks -all": "Update all dirty subnetworks synchronously",
+            "update subnetworks -deleted": "Update all deleted dirty subnetworks synchronously",
+            "update subnetworks -all -async": "Update all dirty subnetworks asynchronously",          
+            "export subnetworks -all": "Export all subnetworks with ACK ",
+            "export subnetworks -new": "Export all subnetworks with ACK that haven't been exported ",
+            "export subnetworks -deleted": "Export all subnetworks with ACK that are deleted ",
+            "count": "Lists the number of rows in all feature layers.",
+            "count -system": "Lists the number of rows in system layers.",
+            "whoami": "Lists the current login info",
+            "clear": "Clears this screen",
+            "quit": "Exit this program"
+                    
+        })
+    },
+    "^whoami$": async () => {
+ 
+        console.log(`${parameters.user}@${parameters.service}@${parameters.version}`)
+
+    },
+    "^def -layers$|^layers$": async () => {
+        const layerProperties = [
+            "id",
+            "name",
+            "type",
+            "geometryType"
+        ]
+        let serviceDef = await portal.serviceDef(parameters.service);
+         
+        serviceDef.layers.forEach (l=> Object.keys(l).forEach (k => !layerProperties.includes(k) ? delete l[k] : ""))  
+        console.table(serviceDef.layers)
+    },
+    "^def$" : async () => {
+        //we will only print interesting properties
+        const serviceProperties = [
+            "currentVersion",
+            "hasVersionedData",
+            "hasArchivedData",
+            "supportsDisconnectedEditing",
+            "maxRecordCount",
+            "supportsApplyEditsWithGlobalIds",
+            "supportsOidReservation",
+            "capabilities"
+        ]
+
+        let serviceDef = await portal.serviceDef(parameters.service);
+
+        Object.keys(serviceDef).forEach (k => !serviceProperties.includes(k) ? delete serviceDef[k] : "")
+
+        console.table(serviceDef)
+    },
+    "^subnetworks$": async () => {
+        
+        const subnetworks = await un.getSubnetworks();
+        if (subnetworks.features.length === 0) {
+            console.log("No dirty subnetworks found.")
+            return;
+        }
+        const subs = subnetworks.features.map(a => a.attributes)
+        console.table(subs)
+        const rowCount = subs.length;
+        console.log (`${numberWithCommas(rowCount)} rows returned.`)
+    },
+    "^topology$": async () => {  
+        const moments = ["initialEnableTopology","fullValidateTopology","partialValidateTopology","enableTopology","disableTopology","definitionModification","updateIsConnected"]      
+        const networkMoments = await un.queryMoment(moments)
+       // networkMoments.forEach (m => momentsText += `\n${m.moment} : ${m.time === 0 ? "N/A": new Date(m.time*1000)} ${m.duration === 0 ? "" : ` Duration: ${Math.round(m.duration/1000)}s `} `)
+       // networkMoments.forEach (m => momentsText += `\n${m.moment} : ${m.time === 0 ? "N/A": new Date(m.time*1000)} ${m.duration === 0 ? "" : ` Duration: ${Math.round(m.duration/1000)}s `} `)
+      //  console.log('\x1b[36m%s\x1b[0m', 'I am cyan');  //cyan
+        const topoMoments = networkMoments.networkMoments.map(m => {
+            const t = m.time === 0 ? "N/A": new Date(m.time*1000)
+            const d = m.duration === 0 ? "N/A" : numberWithCommas(Math.round(m.duration/1000)) + " s"
+            m.time = t.toString()
+            m.duration = d;
+            return m;
+        })
+        topoMoments.push({
+            "moment": "Is Enabled",
+            "time": networkMoments.validNetworkTopology ,
+            "duration": networkMoments.validNetworkTopology 
+        }) 
+        console.table(topoMoments) 
+    },
+    "^topology -enable$": async () => {
+        console.log("Enabling topology ...");
+        const fromDate = new Date();
+        const result = await un.enableTopology()
+        const toDate = new Date();
+        const timeEnable = toDate.getTime() - fromDate.getTime();
+        result.duration =  numberWithCommas(Math.round(timeEnable/1000)) + " s"
+        console.table(result) 
+    },
+    "^topology -disable$": async () => {
+        const fromDate = new Date();
+        console.log("Disabling topology ...");
+        const result = await un.disableTopology()
+        const toDate = new Date();
+        const timeEnable = toDate.getTime() - fromDate.getTime();
+        result.duration =  numberWithCommas(Math.round(timeEnable/1000)) + " s"
+        console.table(result) 
+    },
+    "^subnetworks -d$": async () => {        
+        const subnetworks = await un.getSubnetworks("isdirty=1");
+        if (subnetworks.features.length === 0) {
+            console.log("No dirty subnetworks found.")
+            return;
+        }
+            
+        const subs = subnetworks.features.map(a => a.attributes)
+        console.table(subs)
+        const rowCount = subs.length;
+        console.log (`${numberWithCommas(rowCount)} rows returned.`)
+    },
+    "^subnetworks -dd$": async () => {        
+        const subnetworks = await un.getSubnetworks("isdirty=1 and isdeleted=1");
+        if (subnetworks.features.length === 0) {
+            console.log("No dirty and deleted subnetworks found.")
+            return;
+        }
+            
+        const subs = subnetworks.features.map(a => a.attributes)
+        console.table(subs)
+        const rowCount = subs.length;
+        console.log (`${numberWithCommas(rowCount)} rows returned.`)
+    },
+
+    "^update subnetworks -deleted$" : async () => {
+        console.log("Querying all subnetworks that are dirty and deleted.");
+        let subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty=1 and isdeleted=1");
+        console.log(`Discovered ${subnetworks.features.length} dirty deleted subnetworks.`);
+        for (let i = 0;  i < subnetworks.features.length; i++) {
+            const f = subnetworks.features[i]
+            console.log("Updating Subnetwork " + v(f.attributes,"subnetworkName"));
+            
+            const fromDate = new Date();
+             
+            
+            const subnetworkResult = await un.updateSubnetworks(v(f.attributes,"domainNetworkName"), v(f.attributes,"tierName"), v(f.attributes,"subnetworkName"),false);
+            
+            //code
+
+            const toDate = new Date();
+            const timeEnable = toDate.getTime() - fromDate.getTime();
+            subnetworkResult.duration =  numberWithCommas(Math.round(timeEnable/1000)) + " s"
+            
+
+            console.log(`Result ${JSON.stringify(subnetworkResult)}`)
+        }
+    },
+
+    "^update subnetworks -all$" : async () => {
+        console.log("Querying all subnetworks that are dirty.");
+        let subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty=1");
+        console.log(`Discovered ${subnetworks.features.length} dirty subnetworks.`);
+
+
+        for (let i = 0;  i < subnetworks.features.length; i++) {
+            const f = subnetworks.features[i]
+            console.log("Updating Subnetwork " + v(f.attributes,"subnetworkName"));
+            
+            const fromDate = new Date();
+            
+
+            const subnetworkResult = await un.updateSubnetworks(v(f.attributes,"domainNetworkName"), v(f.attributes,"tierName"), v(f.attributes,"subnetworkName"),false);
+            
+            const toDate = new Date();
+            const timeEnable = toDate.getTime() - fromDate.getTime();
+            subnetworkResult.duration =  numberWithCommas(Math.round(timeEnable/1000)) + " s"
+
+            console.log(`Result ${JSON.stringify(subnetworkResult)}`)
+        }
+    },
+    "^update subnetworks -all -async$" : async () => {
+        console.log("Querying all subnetworks that are dirty.");
+        let subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty=1");
+        console.log(`Discovered ${subnetworks.features.length} dirty subnetworks.`);
+        for (let i = 0;  i < subnetworks.features.length; i++) {
+            const f = subnetworks.features[i]
+            console.log("Sending job for " + v(f.attributes,"subnetworkName"));
+            const subnetworkResult = await un.updateSubnetworks(v(f.attributes,"domainNetworkName"), v(f.attributes,"tierName"), v(f.attributes,"subnetworkName"),true);
+            console.log(`Result from submitting job ${JSON.stringify(subnetworkResult)}`)
+        }
+    },
+    "^export subnetworks -all$" : async input => {
+
+        
+        //create folder
+        const file = input.match(/-f .*/gm)
+        let inputDir = "Exported"
+        if (file != null && file.length > 0)
+             inputDir = file[0].replace("-f ", "")
+        //create directory if doesn't exists
+        if (!fs.existsSync(inputDir))  fs.mkdirSync(inputDir)
+
+
+        console.log("Querying all subnetworks that are clean.");
+        let subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty=0");
+        console.log(`Discovered ${subnetworks.features.length} subnetworks that can be exported.`);
+        for (let i = 0;  i < subnetworks.features.length; i++) {
+            const f = subnetworks.features[i]
+            const subnetworkName = v(f.attributes,"subnetworkName")
+            console.log("Exporting subnetworks " + v(f.attributes,"subnetworkName"));
+            
+            const fromDate = new Date();
+            
+            const subnetworkResult = await un.exportSubnetworks(v(f.attributes,"domainNetworkName"), v(f.attributes,"tierName"), v(f.attributes,"subnetworkName"),false);
+             
+            
+            //code
+
+            const toDate = new Date();
+            const timeEnable = toDate.getTime() - fromDate.getTime();
+            subnetworkResult.duration =  numberWithCommas(Math.round(timeEnable/1000)) + " s"
+            
+
+            //fetch the json and write it to disk 
+            const subContent = await fetch(subnetworkResult.url);
+            //check if the response is 200 only then attempt to parse to json
+            //although the response is json, its easier to treat it as text (handle error cases) since we will only write it to disk.
+            // if we want to do something with the response then make it json
+            const jsonExport = await subContent.text();
+            fs.writeFileSync(`${inputDir}/${subnetworkName}.json`, jsonExport)            
+           
+
+            console.log(`Result ${JSON.stringify(subnetworkResult)} written to file ${process.cwd()}/${inputDir}/${subnetworkName}.json`)
+
+        }
+    },
+   
+
+    "^export subnetworks -new -f .*$|^export subnetworks -new$" : async input => {
+
+        //create folder
+        const file = input.match(/-f .*/gm)
+        let inputDir = "Exported"
+        if (file != null && file.length > 0)
+             inputDir = file[0].replace("-f ", "")
+        //create directory if doesn't exists
+        if (!fs.existsSync(inputDir))  fs.mkdirSync(inputDir)
+
+
+        console.log("Querying all subnetworks that are clean and not exported.");
+        let subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty = 0 and (LASTACKEXPORTSUBNETWORK is null or LASTACKEXPORTSUBNETWORK < LASTUPDATESUBNETWORK)");
+        console.log(`Discovered ${subnetworks.features.length} subnetworks that can be exported.`);
+        for (let i = 0;  i < subnetworks.features.length; i++) {
+            const f = subnetworks.features[i]
+            const subnetworkName = v(f.attributes,"subnetworkName")
+            console.log(`Exporting subnetwork ${subnetworkName}` );
+            const subnetworkResult = await un.exportSubnetworks(v(f.attributes,"domainNetworkName"), v(f.attributes,"tierName"), v(f.attributes,"subnetworkName"),false);
+            //fetch the json and write it to disk 
+            const subContent = await fetch(subnetworkResult.url);
+            const jsonExport = await subContent.text();
+            fs.writeFileSync(`${inputDir}/${subnetworkName}.json`, JSON.stringify(jsonExport))            
+
+            console.log(`Result ${JSON.stringify(subnetworkResult)} written to file ${process.cwd()}/${inputDir}/${subnetworkName}.json`)
+        }
+
+ 
+
+    },
+
+    "^ia$": async input => {
+
+        const result = await un.returnInvalidAssociations();
+        console.log("Invalid Associations " + JSON.stringify(result))
+    },
+    "^export subnetworks -deleted$" : async input => {
+
+        //create folder
+        const file = input.match(/-f .*/gm)
+        let inputDir = "Exported"
+        if (file != null && file.length > 0)
+             inputDir = file[0].replace("-f ", "")
+        //create directory if doesn't exists
+        if (!fs.existsSync(inputDir))  fs.mkdirSync(inputDir)
+
+
+        console.log("Querying all subnetworks that are clean and deleted.");
+        let subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty = 0 and isdeleted=1");
+        console.log(`Discovered ${subnetworks.features.length} subnetworks that can be exported.`);
+        for (let i = 0;  i < subnetworks.features.length; i++) {
+            const f = subnetworks.features[i]
+            const subnetworkName = v(f.attributes,"subnetworkName")
+            console.log(`Exporting subnetwork ${subnetworkName}` );
+            const subnetworkResult = await un.exportSubnetworks(v(f.attributes,"domainNetworkName"), v(f.attributes,"tierName"), v(f.attributes,"subnetworkName"),false);
+            //fetch the json and write it to disk 
+            const subContent = await fetch(subnetworkResult.url);
+            const jsonExport = await subContent.text();
+            fs.writeFileSync(`${inputDir}/${subnetworkName}.json`, JSON.stringify(jsonExport))            
+
+            console.log(`Result ${JSON.stringify(subnetworkResult)} written to file ${process.cwd()}/${inputDir}/${subnetworkName}.json`)
+        }
+
+ 
+
+    },
+    "^cwd$" : async input => {
+          
+
+        console.log(process.cwd())
+ 
+     },
+ 
+     "^write -f.*$": async input => {
+           
+  
+         const file = input.match(/-f .*/gm)
+         const inputDir = file[0].replace("-f ", "")
+         //create directory if doesn't exists
+         if (!fs.existsSync(inputDir))  fs.mkdirSync(inputDir)
+         fs.writeFileSync(`${inputDir}/${Math.random()}`, Math.random())
+         console.log(inputDir)
+   
+  
+      },
+
+
+    "^count$": async () => {
+        console.log("Querying all layers....")
+        const layerProperties = [
+            "id",
+            "name",
+            "type",
+            "geometryType"
+        ]
+        let serviceDef = await portal.serviceDef(parameters.service);
+         
+        const layerCount = []
+        const systemLayers = un.getSystemLayers();
+        let totalRows =0;
+        serviceDef.layers.forEach (l=> Object.keys(l).forEach (k => !layerProperties.includes(k) ? delete l[k] : ""))  
+        //all layers except system ones
+        const allLayers = serviceDef.layers.filter(l => l.type === 'Feature Layer' && !systemLayers.find(a=> a.id === l.id ))
+  
+
+        for (let i = 0; i < allLayers.length; i++ )      
+        {
+            const l = allLayers[i]
+            logger.info (`getting the count of rows of layer ${l.name} ...`) 
+            const result = await un.queryCount(l.id);
+            totalRows+=result.count;
+            layerCount.push( {
+                "layerId": l.id,
+                "name": l.name    ,
+                "count": numberWithCommas(result.count)
+            })
+    
+        }
+
+ 
+       
+        console.table(layerCount)
+        console.log(`Total number of rows in all layers : ${numberWithCommas(totalRows)} .`)
+    },
+
+    
+    "^count -system$": async () => {
+        console.log("Querying all system layers....")
+        
+        const systemLayers = un.getSystemLayers();
+       
+
+ 
+        const layerCount = []
+        for (let i = 0; i < systemLayers.length; i++ )      
+        {
+            const l = systemLayers[i]
+            logger.info (`getting the count of rows of layer ${l.name} ...`) 
+
+            const result = await un.queryCount(l.id);
+            
+            layerCount.push( {
+                "layerId": l.id,
+                "name": l.name    ,
+                "count": numberWithCommas( result.count)
+            })
+    
+        } 
+        
+        console.table(layerCount) 
+    },
+
+
+    "^version$": () => console.log(version),
+    "^clear$|^cls$": () => console.clear(),
+    "^quit$": () => {
+        rl.close();
+        process.exit();
+    },
+    "^exit$|^quit$|^bye$": () => {
+        rl.close();
+        process.exit();
+    }
+    
+
+    
+} 
+
+
+ async function executeInput(input) {
+
+    return new Promise( async (resolve, reject) => {
+
+        //execute regEx against all keys and get the first one that matches
+        for (const k of Object.keys(inputs)) {
+              
+            //execute reg ex
+            const regExPassed = new RegExp(k, "i").test(input)
+            if (regExPassed)
+            {
+                //execute command
+            await inputs[k](input);
+            resolve(`Command ${input} executed successfully.`);
+            return;
+           }
+         
+
+        }
+        
+        //if none of the keys matched fail.
+        reject(`Invalid command ${input}. Type help to get a list of commands`)
+
+        /*
+            //find the command and execute it
+        if (Object.keys(inputs).includes(input)) 
+        {
+            await inputs[input]();
+            resolve(`Command ${input} executed successfully.`);
+        }            
+        else
+            reject(`Invalid command ${input}. Type help to get a list of commands`)
+
+        */
+
+    })
+  
+ 
+}
+
+ async function askInput() {
+    try{
+
+        if (rl == null) {
+        
+            setupReadLine();
+        }
+
+        rl.question("uncli> ",  async input => {
+
+            const regex = /def \d/gm;
+            regex.exec()
+            try {
+
+            //execute input
+            await executeInput(input)
+            }
+            catch(ex){
+                console.error(`${ex}`);
+            }
+                         
+            askInput();
+    
+        });
+    }
+    catch(ex){
+        console.error(ex)
+        process.exit();
+    }
+  
+}
+
+
+function numberWithCommas(x) {
+   // return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+   return x.toLocaleString()
+}
+
+/*
+rl.question("What is your name ? ", function(name) {
+    rl.question("Where do you live ? ", function(country) {
+        console.log(`${name}, is a citizen of ${country}`);
+        rl.close();
+    });
+});
+*/
+function setupReadLine() {
+        
+    rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stdout
+    });
+
+    rl.on("close", function() {
+        console.log("\nbye");
+        process.exit(0);
+    });
+
+}
+
+const v = (o, f, vIfNotFound=null) => {
+    for (let p in o) 
+        if (p.toLowerCase() === f.toLowerCase())
+            return o[p];
+    return vIfNotFound;
+}
+
+let parameters = null;
+export async function run (){
+    const minVer = "v13.2.0"
+    const major = Number(process.version.split(".")[0].replace("v",""))
+    
+    if (major < 13) { 
+        console.error(`Minimum required node js is ${minVer} your version is ${process.version}`)
+        process.exit(0);
+    }
+    console.log(`uncli ${version} is experimental command line utility for basic utility network services. Use as is.`)
+    parameters = await parseInput( )
+    await connect(parameters)
+}
+
+
+
