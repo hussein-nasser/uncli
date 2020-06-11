@@ -108,6 +108,8 @@ async function connect(parameters) {
             const commands = fs.readFileSync(file).toString().split(/\r?\n/)
             for (let i = 0; i < commands.length; i++) {
                 const c = commands[i];
+                //check for new empty lines and skip them
+                if (/^\s*$/.test(c)) continue;
                 await executeInput(c);
             }
             
@@ -156,6 +158,7 @@ const inputs = {
             "topology" : "Displays the topology status",
             "topology -disable" : "Disable topology",
             "topology -enable" : "Enable topology",
+            "topology -validate" : "Validate topology (full extent)",
             "update subnetworks -all": "Update all dirty subnetworks synchronously",
             "update subnetworks -deleted": "Update all deleted dirty subnetworks synchronously",
             "update subnetworks -all -async": "Update all dirty subnetworks asynchronously",          
@@ -251,6 +254,15 @@ const inputs = {
         const fromDate = new Date();
         console.log("Disabling topology ...");
         const result = await un.disableTopology()
+        const toDate = new Date();
+        const timeEnable = toDate.getTime() - fromDate.getTime();
+        result.duration =  numberWithCommas(Math.round(timeEnable/1000)) + " s"
+        console.table(result) 
+    },
+    "^topology -validate$": async () => {
+        console.log("Validating Network topology ...");
+        const fromDate = new Date();
+        const result = await un.validateNetworkTopology()
         const toDate = new Date();
         const timeEnable = toDate.getTime() - fromDate.getTime();
         result.duration =  numberWithCommas(Math.round(timeEnable/1000)) + " s"
