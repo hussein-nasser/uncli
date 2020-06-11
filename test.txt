@@ -1,0 +1,6 @@
+echo topology -disable>cmd.txt
+node un.mjs --portal https://utilitynetwork.esri.com/portal --user unadmin --password unadmin.108 --service GettingToKnow_Postgres --file cmd.txt
+echo topology -enable>cmd.txt
+node un.mjs --portal https://utilitynetwork.esri.com/portal --user unadmin --password unadmin.108 --service GettingToKnow_Postgres --file cmd.txt
+echo update subnetworks -all>cmd.txt
+node un.mjs --portal https://utilitynetwork.esri.com/portal --user unadmin --password unadmin.108 --service GettingToKnow_Postgres --file cmd.txt

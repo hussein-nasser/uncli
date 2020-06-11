@@ -1,2 +1,3 @@
-subnetworks
-def
+topology -disable
+topology -enable
+update subnetworks -all

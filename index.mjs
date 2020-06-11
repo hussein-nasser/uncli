@@ -5,7 +5,7 @@ import { UtilityNetwork } from "./utilitynetwork.node.mjs"
 import { logger } from "./logger.mjs"
 import  fetch  from "node-fetch"
 //update version
-let version = "0.0.48";
+let version = "0.0.49";
 const GENERATE_TOKEN_TIME_MIN = 10;
 
 let rl = null;
@@ -105,7 +105,7 @@ async function connect(parameters) {
     const command = parameters.command;
     if ( file != "") {
         if (fs.existsSync(file)){
-            const commands = fs.readFileSync(file).toString().split("\r\n")
+            const commands = fs.readFileSync(file).toString().split(/\r?\n/)
             for (let i = 0; i < commands.length; i++) {
                 const c = commands[i];
                 await executeInput(c);
@@ -128,7 +128,7 @@ async function connect(parameters) {
     }
     catch(ex){
         console.error(ex)
-        process.exit()
+        process.exit(1)
     }
 }
 
@@ -545,7 +545,7 @@ const inputs = {
         process.exit();
     },
     "^exit$|^quit$|^bye$": () => {
-        rl.close();
+        if (rl) rl.close();
         process.exit();
     }
     
@@ -557,7 +557,8 @@ const inputs = {
  async function executeInput(input) {
 
     return new Promise( async (resolve, reject) => {
-
+        
+        try { 
         //execute regEx against all keys and get the first one that matches
         for (const k of Object.keys(inputs)) {
               
@@ -589,6 +590,12 @@ const inputs = {
 
         */
 
+    }
+       catch(ex){
+        //fail when unexpected error occured.
+        console.error(ex);
+        process.exit(1);
+       } 
     })
   
  
