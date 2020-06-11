@@ -5,7 +5,7 @@ import { UtilityNetwork } from "./utilitynetwork.node.mjs"
 import { logger } from "./logger.mjs"
 import  fetch  from "node-fetch"
 //update version
-let version = "0.0.49";
+let version = "0.0.50";
 const GENERATE_TOKEN_TIME_MIN = 10;
 
 let rl = null;
