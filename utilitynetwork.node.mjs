@@ -725,6 +725,17 @@ export class UtilityNetwork {
             return this.Trace(traceLocationsParam, "downstream", traceConfiguration);
         }
 
+        //traces a single subnetwork
+        async subnetworkTraceSimple(subnetworkName) {
+            //query to find the tier and domain network
+            const result = await this.query(500002, `subnetworkname = '${subnetworkName}'`, "", "", "TIERNAME,DOMAINNETWORKNAME")
+            if (result.features.length == 0) return null; 
+            const subnetworkRow = result.features[0];
+            const domainNetworkName = v(subnetworkRow.attributes, "DOMAINNETWORKNAME");
+            const tierName = v(subnetworkRow.attributes, "TIERNAME");
+  
+            return this.subnetworkTrace([], domainNetworkName, tierName, subnetworkName )
+        }
         //run subnetwork Trace
         subnetworkTrace(traceLocationsParam, domainNetworkName, tierName, subnetworkName, traceConfiguration, forceFail)
         {   

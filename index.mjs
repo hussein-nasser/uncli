@@ -5,7 +5,7 @@ import { UtilityNetwork } from "./utilitynetwork.node.mjs"
 import { logger } from "./logger.mjs"
 import  fetch  from "node-fetch"
 //update version
-let version = "0.0.50";
+let version = "0.0.51";
 const GENERATE_TOKEN_TIME_MIN = 10;
 
 let rl = null;
@@ -155,6 +155,7 @@ const inputs = {
             "subnetworks" : "Lists all subnetworks",
             "subnetworks -d" : "Lists only dirty subnetworks",
             "subnetworks -dd" : "Lists dirty and deleted subnetworks",
+            "trace -s <subnetwork>": "Traces input subnetwork and returns the time and number of elements returned .",
             "topology" : "Displays the topology status",
             "topology -disable" : "Disable topology",
             "topology -enable" : "Enable topology",
@@ -432,6 +433,32 @@ const inputs = {
 
         const result = await un.returnInvalidAssociations();
         console.log("Invalid Associations " + JSON.stringify(result))
+    },
+
+    "^trace -s": async input => {
+        //get subnetwork name
+
+        const fromDate = new Date();
+       
+
+        const inputParam = input.match(/-s .*/gm)
+        let subnetworkName = null;
+        if (inputParam != null && inputParam.length > 0)
+            subnetworkName = inputParam[0].replace("-s ", "")
+
+        console.log(`Tracing subnetwork ${subnetworkName}`);
+        const result = await un.subnetworkTraceSimple(subnetworkName)
+        if (result == null) {
+            console.log(`Subnetwork ${subnetworkName} doesn't exist`);
+            return null;
+        }
+        const toDate = new Date();
+        const timeRun = toDate.getTime() - fromDate.getTime();
+        const newResult = {}
+        newResult.duration =  numberWithCommas(Math.round(timeRun/1000)) + " s"
+        newResult.elementsCount = result.traceResults.elements.length;
+        console.table(newResult) 
+
     },
     "^export subnetworks -deleted$" : async input => {
 
