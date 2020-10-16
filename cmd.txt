@@ -1,1 +1,1 @@
-trace -s 107
+evaluate

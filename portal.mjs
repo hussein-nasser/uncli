@@ -4,7 +4,7 @@ import { logger } from "./logger.mjs"
 process.env['NODE_TLS_REJECT_UNAUTHORIZED'] = 0
 export class Portal{
         
-    constructor(url, username, password, expiration = 120)
+    constructor(url, username, password, expiration = 300)
     {
         this.url = url;
         this.username = username;

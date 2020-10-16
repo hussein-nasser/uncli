@@ -881,9 +881,26 @@ export class UtilityNetwork {
 
         }
 
-        evaluate (extent, evaluationTypes, async = false, gdbVersion = "sde.DEFAULT")  {
+        evaluate (extent, selectionSet, evaluationTypes, async = false, gdbVersion = "sde.DEFAULT")  {
 
-            let thisObj = this;    
+            console.log("Evaluating... ")
+            /*
+                        
+            [
+            {
+                "id": 1,
+                "globalIds": [
+                "{4C4EB90D-97C1-4AE1-95FC-BF3B0D6ECD7B}"
+                ]
+            }
+            ]
+
+
+
+            */
+            const extentJson = extent  == null ? "": JSON.stringify(extent);
+            const selectionJson = selectionSet == null ? "":  JSON.stringify(selectionSet);
+             let thisObj = this;    
              let ar = thisObj.featureServiceUrl.split("/");
              ar[ar.length-1]="ValidationServer";
 
@@ -893,7 +910,8 @@ export class UtilityNetwork {
                   token: this.token,
                   changesInVersion: false, 
                   evaluationType: JSON.stringify(evaluationTypes),
-                  evaluationArea: JSON.stringify(extent),     
+                  selection: selectionJson,     
+                  evaluationArea: extentJson,     
                   gdbVersion: gdbVersion,  
                   async: async
               } 

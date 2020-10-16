@@ -5,7 +5,7 @@ import { UtilityNetwork } from "./utilitynetwork.node.mjs"
 import { logger } from "./logger.mjs"
 import  fetch  from "node-fetch"
 //update version
-let version = "0.0.51";
+let version = "0.0.52";
 const GENERATE_TOKEN_TIME_MIN = 10;
 
 let rl = null;
@@ -155,6 +155,7 @@ const inputs = {
             "subnetworks" : "Lists all subnetworks",
             "subnetworks -d" : "Lists only dirty subnetworks",
             "subnetworks -dd" : "Lists dirty and deleted subnetworks",
+            "evaluate" : "Evaluate in parallel",
             "trace -s <subnetwork>": "Traces input subnetwork and returns the time and number of elements returned .",
             "topology" : "Displays the topology status",
             "topology -disable" : "Disable topology",
@@ -260,6 +261,80 @@ const inputs = {
         result.duration =  numberWithCommas(Math.round(timeEnable/1000)) + " s"
         console.table(result) 
     },
+    "^evaluate$": async () => {
+        const fromDate = new Date();
+        console.log("Building Evaluation Blocks ...");
+        //return evaluation blocks for layer 5
+        const blocks = await buildEvaluationBlocks(5);
+
+        console.log("Evaluating Attribute Rules ...");
+        //blocks.forEach(b => un.evaluate (null, b, ["validationRules", "calculationRules"], async = false, gdbVersion = "sde.DEFAULT"))
+        //Object.keys(blocks).forEach(k => console.log(blocks[k]))
+        const promises = []
+        Object.keys(blocks).forEach(k => promises.push(un.evaluate (null, blocks[k], ["validationRules", "calculationRules"] )))
+        
+        console.log("done sending all requests.. now waiting for response ")
+        
+        Promise.all(promises).then(a=>console.log("done")).catch(a=>console.log("failed" + JSON.stringify(a)))
+
+        const result = {}
+        const toDate = new Date();
+        const timeEnable = toDate.getTime() - fromDate.getTime();
+        result.duration =  numberWithCommas(Math.round(timeEnable/1000)) + " s"
+        console.log(result)
+    },
+
+    //partition so that we can run and commit incrementally.. 
+    //progress
+    //timeouts
+    //in case failure you don't lose everything
+    "^topology -validate -fn$": async () => {
+        console.log("Validating Network topology ...");
+
+        const fullExtent = un.featureServiceJson.fullExtent;
+        /*
+        fullExtent.xmin = 0;
+        fullExtent.xmax = 100;
+        fullExtent.ymin = 0;
+        fullExtent.ymax = 100;
+        https://desktop.arcgis.com/en/arcmap/10.3/tools/cartography-toolbox/create-cartographic-partitions.htm
+        */
+        //fish net
+        const grids = 4;
+        const dx = (fullExtent.xmax - fullExtent.xmin) / grids;
+        const dy = (fullExtent.ymax - fullExtent.ymin) / grids;
+        
+        const extents = [];
+        for (let i =0; i < grids; i ++) {
+            
+            for (let j = 0; j < grids; j++) {
+                const extent = {
+                    "xmin": fullExtent.xmin + j*dx,
+                    "xmax": fullExtent.xmin + j*dx + dx,
+                    "ymin": fullExtent.ymin + i*dy,
+                    "ymax": fullExtent.ymin + i*dy + dy,
+                    "spatialReference": fullExtent.spatialReference
+                }
+                extents.push(extent);
+            }
+        }
+         
+        extents.forEach(async e => {
+            const fromDate = new Date(); 
+
+            const result = await un.validateNetworkTopology("sde.DEFAULT", e)
+            const toDate = new Date();
+            const timeEnable = toDate.getTime() - fromDate.getTime();
+            const duration =  numberWithCommas(Math.round(timeEnable/1000)) + " s"
+            console.clear()
+            console.log("Validating extent " + e.xmin)
+            console.table({duration}) 
+
+        })
+        
+        
+    },
+
     "^topology -validate$": async () => {
         console.log("Validating Network topology ...");
         const fromDate = new Date();
@@ -593,6 +668,42 @@ const inputs = {
 } 
 
 
+
+ async function buildEvaluationBlocks(layerId) {
+    let offset = 0;
+    let recordCount = 2000;
+    let maxSOC = 10;
+    const globalIds = [];
+   
+    while(true) {
+        const result = await un.query(layerId, `1=1`, undefined, undefined, ["globalId"], "sde.DEFAULT", offset, recordCount)
+        console.log(`Processing ${recordCount} rows`)
+        //for each assocaition check if its valid
+        for (let i = 0 ; i < result.features.length; i++){
+            const row = result.features[i]
+            globalIds.push(row.attributes.globalid)
+        }
+
+        //keep asking if this is true
+        if (!result.exceededTransferLimit) break;
+        offset+= recordCount;
+    }
+
+    const blockSize = parseInt(globalIds.length / maxSOC);
+    const blocks = {}
+    for (let i = 0; i < maxSOC; i++) {
+        blocks[i] = 
+        [
+          {
+            "id": layerId,
+            "globalIds": globalIds.slice(i*blockSize, (i+1)*blockSize)
+          }
+        ]
+        
+    } 
+    return blocks;
+
+ }
  async function executeInput(input) {
 
     return new Promise( async (resolve, reject) => {
