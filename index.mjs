@@ -5,7 +5,7 @@ import { UtilityNetwork } from "./utilitynetwork.node.mjs"
 import { logger } from "./logger.mjs"
 import  fetch  from "node-fetch"
 //update version
-let version = "0.0.52";
+let version = "0.0.53";
 const GENERATE_TOKEN_TIME_MIN = 10;
 
 let rl = null;
@@ -829,6 +829,7 @@ export async function run (){
     }
     console.log(`uncli ${version} is experimental command line utility for basic utility network services. Use as is.`)
     parameters = await parseInput( )
+    setTimeout( async ()=> await regenerateToken(parameters) , 1000*60*GENERATE_TOKEN_TIME_MIN)
     await connect(parameters)
 }
 
