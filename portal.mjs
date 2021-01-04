@@ -33,9 +33,9 @@ export class Portal{
                     }
     
                     //query for token 
-                    logger.info("About to make a POST request..")
+                    logger.info("Generating Token Sending POST request..")
                     const result = await makeRequest({method: 'POST', url: tokenUrl, params: postJson });
-                    logger.info("got result " + JSON.stringify(result))
+                    logger.info("Got result.")
                     if (result.error) reject(JSON.stringify(result.error))
                     self.token = result.token;
              

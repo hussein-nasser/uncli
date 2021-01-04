@@ -28,7 +28,7 @@ export function makeRequest (opts) {
        if (opts.headers) 
            Object.keys(opts.headers).forEach(  key => headers[key] = opts.headers[key] )
 
-       logger.info(  opts )
+       //logger.info(  opts )
        const result = await fetch(opts.url, {
            "method" : opts.method,
             "headers":  headers,

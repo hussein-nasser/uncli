@@ -5,8 +5,8 @@ import { UtilityNetwork } from "./utilitynetwork.node.mjs"
 import { logger } from "./logger.mjs"
 import  fetch  from "node-fetch"
 //update version
-let version = "0.0.53";
-const GENERATE_TOKEN_TIME_MIN = 10;
+let version = "0.0.54";
+const GENERATE_TOKEN_TIME_MIN = 30;
 
 let rl = null;
 
@@ -62,7 +62,7 @@ async function getToken(parameters) {
     portal = new Portal(parameters.portal, parameters.user, parameters.password)
     logger.info("About to connect..")
     const token = await portal.connect()
-    logger.info(`Token ${token}`)
+    logger.info(`Token generanted successfully.`)
     return token;
 }
 
