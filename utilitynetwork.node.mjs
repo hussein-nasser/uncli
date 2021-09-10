@@ -15,11 +15,12 @@ import ProgressBar from "progress"
 
 export class UtilityNetwork {
 
-        constructor(token, featureServiceUrl)
+        constructor(token, featureServiceUrl, gdbVersion="sde.DEFAULT")
         {   
 
             this.featureServiceUrl = featureServiceUrl;
-            this.token = token;          
+            this.token = token;         
+            this.gdbVersion = gdbVersion;
         }
 
       ///first function one should call after creating an instance of a utility network
@@ -187,6 +188,7 @@ export class UtilityNetwork {
             const momentsToReturn = JSON.stringify(moment)
             let postJson = {    
                 token: this.token,
+                gdbVersion:this.gdbVersion,
                 momentsToReturn: momentsToReturn,
                 f: "json"
             }
@@ -201,8 +203,7 @@ export class UtilityNetwork {
 
        }
      
-        
-       getAll
+    
         //return the domainNetwork object.     
         getDomainNetwork(domainNetworkName)
         {
@@ -223,7 +224,7 @@ export class UtilityNetwork {
                return tier;
         }
         //query the subnetwokrs table 
-        getSubnetworks(domainNetworkName, tierName, gdbVersion="sde.DEFAULT")
+        getSubnetworks(domainNetworkName, tierName)
         {
             let subnetworkTableUrl = this.featureServiceUrl + "/" + this.layerDefinition.systemLayers.subnetworksTableId + "/query";
             
@@ -232,7 +233,8 @@ export class UtilityNetwork {
                 where: "DOMAINNETWORKNAME = '" + domainNetworkName + "' AND TIERNAME = '" + tierName + "'",
                 outFields: "SUBNETWORKNAME",
                 orderByFields: "SUBNETWORKNAME",
-                gdbVersion: gdbVersion,
+                gdbVersion:this.gdbVersion,
+
                 returnDistinctValues: true,
                 f: "json"
             }
@@ -241,7 +243,7 @@ export class UtilityNetwork {
 
         }
 
-        getSubnetworks(whereclause = "1=1", gdbVersion="sde.DEFAULT") {
+        getSubnetworks(whereclause = "1=1") {
 
             let subnetworkTableUrl = this.featureServiceUrl + "/" + this.layerDefinition.systemLayers.subnetworksTableId + "/query";
             
@@ -250,21 +252,21 @@ export class UtilityNetwork {
                 where: whereclause,
                 outFields: "DOMAINNETWORKNAME, TIERNAME, SUBNETWORKNAME",
                 orderByFields: "DOMAINNETWORKNAME, TIERNAME, SUBNETWORKNAME",
-                gdbVersion: gdbVersion,
+                gdbVersion:this.gdbVersion,
                 returnDistinctValues: true,
                 f: "json"
             }
             
             return makeRequest({method: 'POST', url: subnetworkTableUrl, params: postJson});
         }
-        queryCount(layerId, where ="1=1", gdbVersion="sde.DEFAULT") {
+        queryCount(layerId, where ="1=1") {
 
             let queryJson = {
                 f: "json",
                 token: this.token,
                 returnCountOnly: true,            
                 where: where,
-                gdbVersion: gdbVersion
+                gdbVersion:this.gdbVersion,
             }
  
             queryJson.layerId = layerId 
@@ -273,14 +275,14 @@ export class UtilityNetwork {
              
         }
         
-        queryDistinct(layerId, field, where, gdbVersion = "sde.DEFAULT") {
+        queryDistinct(layerId, field, where) {
            
             let queryJson = {
                 f: "json",
                 token: this.token,
                 outFields: field,
                 where: where,
-                gdbVersion: gdbVersion,
+                gdbVersion:this.gdbVersion,
                 returnDistinctValues: true
             }
  
@@ -297,7 +299,7 @@ export class UtilityNetwork {
 
         }
         //query that projects to webmercator. 
-        query(layerId, where, obj, objectids, outFields = "*", gdbVersion = "sde.DEFAULT", resultOffset = 0, resultRecordCount=2000)
+        query(layerId, where, obj, objectids, outFields = "*", resultOffset = 0, resultRecordCount=2000)
         {   
             let webMercSpatialReference = {
                 "wkid": 102100,
@@ -319,7 +321,7 @@ export class UtilityNetwork {
                 token: this.token,
                 outFields: outFields,
                 where: where,
-                gdbVersion: gdbVersion,
+                gdbVersion:this.gdbVersion,
                 outSR: JSON.stringify(webMercSpatialReference),
                 resultOffset: resultOffset,
                 resultRecordCount: resultRecordCount
@@ -638,6 +640,7 @@ export class UtilityNetwork {
                     f: "json",
                     token: this.token,
                     traceType : traceType,
+                    gdbVersion:this.gdbVersion,
                     traceLocations: JSON.stringify(traceLocations),
                     traceConfiguration: JSON.stringify(traceConfiguration)
                 }
@@ -802,7 +805,7 @@ export class UtilityNetwork {
 
         }
 
-        applyEdits(layerId, adds, updates, deletes, returnServiceEdits=false, gdbVersion="SDE.DEFAULT") {
+        applyEdits(layerId, adds, updates, deletes, returnServiceEdits=false) {
 
             // "updates": [{ 
             //    "attributes": {"GLOBALID": deviceGlobalId,"DEVICESTATUS":0},
@@ -836,7 +839,7 @@ export class UtilityNetwork {
                 token: this.token,
                 useGlobalIds: true,
                 returnEditMoment: false,
-                gdbVersion: gdbVersion,          
+                gdbVersion:this.gdbVersion,
                 edits: JSON.stringify(c)
             }
             
@@ -861,7 +864,8 @@ export class UtilityNetwork {
                 token: this.token, 
                 useGlobalIds: true,
                 returnEditMoment: false,
-    
+                gdbVersion:this.gdbVersion,
+
                 edits: JSON.stringify(c)
             }
             
@@ -871,7 +875,7 @@ export class UtilityNetwork {
 
         }
 
-        evaluate (extent, selectionSet, evaluationTypes, async = false, gdbVersion = "sde.DEFAULT")  {
+        evaluate (extent, selectionSet, evaluationTypes, async = false)  {
 
             console.log("Evaluating... ")
             /*
@@ -902,7 +906,7 @@ export class UtilityNetwork {
                   evaluationType: JSON.stringify(evaluationTypes),
                   selection: selectionJson,     
                   evaluationArea: extentJson,     
-                  gdbVersion: gdbVersion,  
+                  gdbVersion:this.gdbVersion,
                   async: async
               } 
             
@@ -930,7 +934,7 @@ export class UtilityNetwork {
           
         }
 
-        disableTopology(gdbVersion="sde.DEFAULT") {
+        disableTopology() {
 
             let thisObj = this;   
 
@@ -940,8 +944,8 @@ export class UtilityNetwork {
                let jsonPayload = {
                   f: "json",
                   token: this.token,
-                  gdbVersion: gdbVersion
-              } 
+                  gdbVersion:this.gdbVersion,
+                } 
             
             return makeRequest({method:'POST', params: jsonPayload, url: url })
          
@@ -972,8 +976,8 @@ export class UtilityNetwork {
                   allSubnetworksInTier: false,
                   continueOnFailure: false,               
                   async: async,
-                  gdbVersion: "sde.DEFAULT"
-              }
+                  gdbVersion:this.gdbVersion,
+                }
               let un = this;
             
             return makeRequest({method:'POST', params: updatesubnetworkJson, url: updatesubnetworkUrl })
@@ -1005,8 +1009,8 @@ export class UtilityNetwork {
                   continueOnFailure: false,
                   traceConfiguration: subnetworkDef,               
                   async: async,
-                  gdbVersion: "sde.DEFAULT"
-              }
+                  gdbVersion:this.gdbVersion,
+                }
               let un = this;
             
             return makeRequest({method:'POST', params: exportsubnetworkJson, url: exportsubnetworkUrl })
@@ -1015,7 +1019,7 @@ export class UtilityNetwork {
 
         }
 
-        validateNetworkTopology (gdbVersion="sde.DEFAULT", extentArea = null) {
+        validateNetworkTopology (extentArea = null) {
 
             const t = {"includeContainers":false,"includeContent":false,"includeStructures":true,"includeBarriers":true,"validateConsistency":true,"includeIsolated":false,"ignoreBarriersAtStartingPoints":false,"domainNetworkName":"","tierName":"","targetTierName":"","subnetworkName":"","diagramTemplateName":"","shortestPathNetworkAttributeName":"","filterBitsetNetworkAttributeName":"","traversabilityScope":"junctionsAndEdges","conditionBarriers":[{"name":"Operational Device Status","type":"networkAttribute","operator":"equal","value":1,"combineUsingOr":false,"isSpecificValue":true}],"functionBarriers":[],"arcadeExpressionBarrier":"","filterBarriers":[],"filterFunctionBarriers":[],"filterScope":"junctionsAndEdges","functions":[],"nearestNeighbor":{"count":-1,"costNetworkAttributeName":"","nearestCategories":[],"nearestAssets":[]},"outputFilters":[],"outputConditions":[],"propagators":[]}
             
@@ -1035,8 +1039,8 @@ export class UtilityNetwork {
                   token: this.token,
                   validateArea: JSON.stringify(extent), 
                   async: false,
-                  gdbVersion: gdbVersion
-              }
+                  gdbVersion:this.gdbVersion,
+                }
            
              return  makeRequest({method:'POST', params: validateJson, url: validateUrl })
           
@@ -1069,6 +1073,7 @@ export class UtilityNetwork {
             if (opts.headers) 
                 Object.keys(opts.headers).forEach(  key => headers[key] = opts.headers[key] )
             
+           // console.log(params)
             import("node-fetch")
             .then( fetch => {
                 

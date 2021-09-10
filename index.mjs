@@ -25,7 +25,7 @@ function parseInput(){
           "--user" ,
           "--password",
           "--command",
-          "--version",
+          "--gdbversion",
           "--file",
           "--verify"
            ]     
@@ -36,9 +36,9 @@ function parseInput(){
           "user": null,
           "password": null,
           "command": "",
-          "version": "SDE.DEFAULT",
+          "gdbversion": "SDE.DEFAULT",
           "file": "",
-          "verify": true
+          "verify": "true"
       }
 
       for (let i = 0; i < process.argv.length ; i++){
@@ -51,8 +51,9 @@ function parseInput(){
 
       if (Object.values(params).includes(null))
       {
-        console.log ("HELP: uncli --portal https://unportal.domain.com/portal --service servicename --user username --password password [--file commandfile* --verify true|false]")    
+        console.log ("HELP: uncli --portal https://unportal.domain.com/portal --service servicename --user username --password password [--gdbversion* user.version --file commandfile* --verify true|false]")    
         console.log("--file commandfile is optional and you can pass a path to a file with a list of command to execute. ")
+        console.log("--gdbversion is optional and allows the UN to be opened in that version. When not specified sde.DEFAULT is used.")
         process.exit();
       }
      
@@ -96,7 +97,7 @@ async function connect(parameters) {
     }
 
     const serviceUrl =  portal.serverUrl + `/rest/services/${parameters.service}/FeatureServer`
-    un = new UtilityNetwork(token, serviceUrl)
+    un = new UtilityNetwork(token, serviceUrl, parameters.gdbversion)
     console.log("Loading utility network...")
     await un.load();
     console.log("Connected.")
@@ -179,7 +180,7 @@ const inputs = {
     },
     "^whoami$": async () => {
  
-        console.log(`${parameters.user}@${parameters.service}@${parameters.version}`)
+        console.log(`${parameters.user}@${parameters.service}@${parameters.gdbversion}`)
 
     },
     "^def --layers$|^layers$": async () => {
