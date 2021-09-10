@@ -4,23 +4,13 @@
 //Mod    : May-18-2020
 //Twitter: @hnasr
 
- 
-//import('node-fetch').then(f => fetch = f ).catch(e => console.error("can't load , not node"))
-//import("./logger.mjs").then(l => logger = l ).catch(e => console.error("can't load , not node"))
 
 /*
 import fetch from "node-fetch"
 */
 import { logger } from "./logger.mjs"
 import ProgressBar from "progress"
-
-
  
-
-
- 
-//UNCOMMENT THIS LINE IF YOU DON'T HAVE SECURE CERTIFICATE
-process.env['NODE_TLS_REJECT_UNAUTHORIZED'] = 0
   
 
 export class UtilityNetwork {
@@ -391,7 +381,7 @@ export class UtilityNetwork {
             
 
 
-            
+            if (this.layerDefinition.systemLayers.pointErrorsLayerId)
             systemLayers.push({
                 "id": this.layerDefinition.systemLayers.pointErrorsLayerId,
                 "name": "Point Errors",
@@ -399,7 +389,7 @@ export class UtilityNetwork {
                 "geometryType": "Point" 
             })
 
-            
+            if (this.layerDefinition.systemLayers.lineErrorsLayerId)
             systemLayers.push({
                 "id": this.layerDefinition.systemLayers.lineErrorsLayerId,
                 "name": "Line Errors",
@@ -407,7 +397,7 @@ export class UtilityNetwork {
                 "geometryType": "Line" 
             })
             
-            
+            if (this.layerDefinition.systemLayers.polygonErrorsLayerId)
             systemLayers.push({
                 "id": this.layerDefinition.systemLayers.polygonErrorsLayerId,
                 "name": "Polygon Errors",

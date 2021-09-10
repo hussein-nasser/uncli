@@ -1,7 +1,6 @@
 import { makeRequest } from "./makerequest.mjs"
 import { logger } from "./logger.mjs"
 
-process.env['NODE_TLS_REJECT_UNAUTHORIZED'] = 0
 export class Portal{
         
     constructor(url, username, password, expiration = 300)
@@ -45,8 +44,9 @@ export class Portal{
                   
             }
             catch(ex){
-                console.error(ex)
-                reject(`Failed to connect to portal ${ex}`)
+                logger.error(ex.status.message)
+                console.error(ex.status.errno)
+                reject(`Failed to connect to portal, check your username or password or add --verify false if you are using a self-signed certifice (Normally a production system should have a valid certificate signe by a CA and you won't to disable verification)`)
             }
 
             }

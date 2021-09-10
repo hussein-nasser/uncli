@@ -5,7 +5,7 @@ import { UtilityNetwork } from "./utilitynetwork.node.mjs"
 import { logger } from "./logger.mjs"
 import  fetch  from "node-fetch"
 //update version
-let version = "0.0.54";
+let version = "0.0.55";
 const GENERATE_TOKEN_TIME_MIN = 30;
 
 let rl = null;
@@ -26,7 +26,8 @@ function parseInput(){
           "--password",
           "--command",
           "--version",
-          "--file"
+          "--file",
+          "--verify"
            ]     
 
       const params = {
@@ -36,7 +37,8 @@ function parseInput(){
           "password": null,
           "command": "",
           "version": "SDE.DEFAULT",
-          "file": ""
+          "file": "",
+          "verify": true
       }
 
       for (let i = 0; i < process.argv.length ; i++){
@@ -49,7 +51,7 @@ function parseInput(){
 
       if (Object.values(params).includes(null))
       {
-        console.log ("HELP: uncli --portal https://unportal.domain.com/portal --service servicename --user username --password password --file commandfile*")    
+        console.log ("HELP: uncli --portal https://unportal.domain.com/portal --service servicename --user username --password password [--file commandfile* --verify true|false]")    
         console.log("--file commandfile is optional and you can pass a path to a file with a list of command to execute. ")
         process.exit();
       }
@@ -118,15 +120,15 @@ async function connect(parameters) {
             console.error(`Cannot open specified file ${file}.`)
       
     } 
-    //execute one off command
-    if ( command != "")          
-        executeInput(command);
+        //execute one off command
+        if ( command != "")          
+            executeInput(command);
          
 
 
-    askInput();
+        askInput();
 
-    setTimeout( async ()=> await regenerateToken(parameters) , 1000*60*GENERATE_TOKEN_TIME_MIN)
+        setTimeout( async ()=> await regenerateToken(parameters) , 1000*60*GENERATE_TOKEN_TIME_MIN)
     }
     catch(ex){
         console.error(ex)
@@ -151,24 +153,24 @@ const inputs = {
             "version": "Displays the version of uncli",
             "ls": "List all services",
             "def": "Show the feature service definition",
-            "def -layers" : "List all layers in this service",
+            "def --layers" : "List all layers in this service",
             "subnetworks" : "Lists all subnetworks",
-            "subnetworks -d" : "Lists only dirty subnetworks",
-            "subnetworks -dd" : "Lists dirty and deleted subnetworks",
+            "subnetworks --dirty" : "Lists only dirty subnetworks",
+            "subnetworks --deleted" : "Lists dirty and deleted subnetworks",
             "evaluate" : "Evaluate in parallel",
-            "trace -s <subnetwork>": "Traces input subnetwork and returns the time and number of elements returned .",
+            "trace --subnetwork <subnetwork>": "Traces input subnetwork and returns the time and number of elements returned .",
             "topology" : "Displays the topology status",
-            "topology -disable" : "Disable topology",
-            "topology -enable" : "Enable topology",
-            "topology -validate" : "Validate topology (full extent)",
-            "update subnetworks -all": "Update all dirty subnetworks synchronously",
-            "update subnetworks -deleted": "Update all deleted dirty subnetworks synchronously",
-            "update subnetworks -all -async": "Update all dirty subnetworks asynchronously",          
-            "export subnetworks -all": "Export all subnetworks with ACK ",
-            "export subnetworks -new": "Export all subnetworks with ACK that haven't been exported ",
-            "export subnetworks -deleted": "Export all subnetworks with ACK that are deleted ",
+            "topology --disable" : "Disable topology",
+            "topology --enable" : "Enable topology",
+            "topology --validate" : "Validate topology (full extent)",
+            "update subnetworks --all": "Update all dirty subnetworks synchronously",
+            "update subnetworks --deleted": "Update all deleted dirty subnetworks synchronously",
+            "update subnetworks --all --async": "Update all dirty subnetworks asynchronously",          
+            "export subnetworks --all": "Export all subnetworks with ACK ",
+            "export subnetworks --new": "Export all subnetworks with ACK that haven't been exported ",
+            "export subnetworks --deleted": "Export all subnetworks with ACK that are deleted ",
             "count": "Lists the number of rows in all feature layers.",
-            "count -system": "Lists the number of rows in system layers.",
+            "count --system": "Lists the number of rows in system layers.",
             "whoami": "Lists the current login info",
             "clear": "Clears this screen",
             "quit": "Exit this program"
@@ -180,7 +182,7 @@ const inputs = {
         console.log(`${parameters.user}@${parameters.service}@${parameters.version}`)
 
     },
-    "^def -layers$|^layers$": async () => {
+    "^def --layers$|^layers$": async () => {
         const layerProperties = [
             "id",
             "name",
@@ -243,7 +245,7 @@ const inputs = {
         }) 
         console.table(topoMoments) 
     },
-    "^topology -enable$": async () => {
+    "^topology --enable$": async () => {
         console.log("Enabling topology ...");
         const fromDate = new Date();
         const result = await un.enableTopology()
@@ -252,7 +254,7 @@ const inputs = {
         result.duration =  numberWithCommas(Math.round(timeEnable/1000)) + " s"
         console.table(result) 
     },
-    "^topology -disable$": async () => {
+    "^topology --disable$": async () => {
         const fromDate = new Date();
         console.log("Disabling topology ...");
         const result = await un.disableTopology()
@@ -288,7 +290,7 @@ const inputs = {
     //progress
     //timeouts
     //in case failure you don't lose everything
-    "^topology -validate -fn$": async () => {
+    "^topology --validate -fn$": async () => {
         console.log("Validating Network topology ...");
 
         const fullExtent = un.featureServiceJson.fullExtent;
@@ -335,7 +337,7 @@ const inputs = {
         
     },
 
-    "^topology -validate$": async () => {
+    "^topology --validate$": async () => {
         console.log("Validating Network topology ...");
         const fromDate = new Date();
         const result = await un.validateNetworkTopology()
@@ -344,7 +346,7 @@ const inputs = {
         result.duration =  numberWithCommas(Math.round(timeEnable/1000)) + " s"
         console.table(result) 
     },
-    "^subnetworks -d$": async () => {        
+    "^subnetworks --dirty$": async () => {        
         const subnetworks = await un.getSubnetworks("isdirty=1");
         if (subnetworks.features.length === 0) {
             console.log("No dirty subnetworks found.")
@@ -356,7 +358,7 @@ const inputs = {
         const rowCount = subs.length;
         console.log (`${numberWithCommas(rowCount)} rows returned.`)
     },
-    "^subnetworks -dd$": async () => {        
+    "^subnetworks --deleted$": async () => {        
         const subnetworks = await un.getSubnetworks("isdirty=1 and isdeleted=1");
         if (subnetworks.features.length === 0) {
             console.log("No dirty and deleted subnetworks found.")
@@ -369,7 +371,7 @@ const inputs = {
         console.log (`${numberWithCommas(rowCount)} rows returned.`)
     },
 
-    "^update subnetworks -deleted$" : async () => {
+    "^update subnetworks --deleted$" : async () => {
         console.log("Querying all subnetworks that are dirty and deleted.");
         let subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty=1 and isdeleted=1");
         console.log(`Discovered ${subnetworks.features.length} dirty deleted subnetworks.`);
@@ -393,7 +395,7 @@ const inputs = {
         }
     },
 
-    "^update subnetworks -all$" : async () => {
+    "^update subnetworks --all$" : async () => {
         console.log("Querying all subnetworks that are dirty.");
         let subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty=1");
         console.log(`Discovered ${subnetworks.features.length} dirty subnetworks.`);
@@ -415,7 +417,7 @@ const inputs = {
             console.log(`Result ${JSON.stringify(subnetworkResult)}`)
         }
     },
-    "^update subnetworks -all -async$" : async () => {
+    "^update subnetworks --all --async$" : async () => {
         console.log("Querying all subnetworks that are dirty.");
         let subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty=1");
         console.log(`Discovered ${subnetworks.features.length} dirty subnetworks.`);
@@ -426,7 +428,7 @@ const inputs = {
             console.log(`Result from submitting job ${JSON.stringify(subnetworkResult)}`)
         }
     },
-    "^export subnetworks -all$" : async input => {
+    "^export subnetworks --all$" : async input => {
 
         
         //create folder
@@ -473,13 +475,13 @@ const inputs = {
     },
    
 
-    "^export subnetworks -new -f .*$|^export subnetworks -new$" : async input => {
+    "^export subnetworks --new --folder .*$|^export subnetworks --new$" : async input => {
 
         //create folder
-        const file = input.match(/-f .*/gm)
+        const file = input.match(/--folder .*/gm)
         let inputDir = "Exported"
         if (file != null && file.length > 0)
-             inputDir = file[0].replace("-f ", "")
+             inputDir = file[0].replace("--folder ", "")
         //create directory if doesn't exists
         if (!fs.existsSync(inputDir))  fs.mkdirSync(inputDir)
 
@@ -509,17 +511,26 @@ const inputs = {
         const result = await un.returnInvalidAssociations();
         console.log("Invalid Associations " + JSON.stringify(result))
     },
+    "^connect --service": async input =>{
 
-    "^trace -s": async input => {
+        const inputParam = input.match(/--service .*/gm)
+        let serviceName = null;
+        if (inputParam != null && inputParam.length > 0)
+            serviceName = inputParam[0].replace("--service ", "")
+        
+        parameters.service = serviceName
+        connect(parameters)
+    },
+    "^trace --subnetwork": async input => {
         //get subnetwork name
 
         const fromDate = new Date();
        
 
-        const inputParam = input.match(/-s .*/gm)
+        const inputParam = input.match(/--subnetwork .*/gm)
         let subnetworkName = null;
         if (inputParam != null && inputParam.length > 0)
-            subnetworkName = inputParam[0].replace("-s ", "")
+            subnetworkName = inputParam[0].replace("--subnetwork ", "")
 
         console.log(`Tracing subnetwork ${subnetworkName}`);
         const result = await un.subnetworkTraceSimple(subnetworkName)
@@ -535,7 +546,7 @@ const inputs = {
         console.table(newResult) 
 
     },
-    "^export subnetworks -deleted$" : async input => {
+    "^export subnetworks --deleted$" : async input => {
 
         //create folder
         const file = input.match(/-f .*/gm)
@@ -572,11 +583,11 @@ const inputs = {
  
      },
  
-     "^write -f.*$": async input => {
+     "^write --folder.*$": async input => {
            
   
-         const file = input.match(/-f .*/gm)
-         const inputDir = file[0].replace("-f ", "")
+         const file = input.match(/--folder .*/gm)
+         const inputDir = file[0].replace("--folder ", "")
          //create directory if doesn't exists
          if (!fs.existsSync(inputDir))  fs.mkdirSync(inputDir)
          fs.writeFileSync(`${inputDir}/${Math.random()}`, Math.random())
@@ -625,12 +636,11 @@ const inputs = {
     },
 
     
-    "^count -system$": async () => {
+    "^count --system$": async () => {
         console.log("Querying all system layers....")
         
         const systemLayers = un.getSystemLayers();
-       
-
+        let totalRows = 0;
  
         const layerCount = []
         for (let i = 0; i < systemLayers.length; i++ )      
@@ -640,6 +650,7 @@ const inputs = {
 
             const result = await un.queryCount(l.id);
             
+            totalRows+=result.count;
             layerCount.push( {
                 "layerId": l.id,
                 "name": l.name    ,
@@ -648,7 +659,9 @@ const inputs = {
     
         } 
         
-        console.table(layerCount) 
+        console.table(layerCount)
+        console.log(`Total number of rows in all system layers : ${numberWithCommas(totalRows)} .`)
+
     },
 
 
@@ -829,6 +842,9 @@ export async function run (){
     }
     console.log(`uncli ${version} is experimental command line utility for basic utility network services. Use as is.`)
     parameters = await parseInput( )
+    //set certificate verification 
+    const verifyCert = parameters["verify"] === 'true' ? 1 : 0;
+    process.env['NODE_TLS_REJECT_UNAUTHORIZED'] = verifyCert;
     setTimeout( async ()=> await regenerateToken(parameters) , 1000*60*GENERATE_TOKEN_TIME_MIN)
     await connect(parameters)
 }

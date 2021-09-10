@@ -51,5 +51,5 @@ export subnetworks -new
 ```
 
 
-> uncli --portal https://utilitynetwork.esri.com/portal --service NapervilleElectric_SQLServer --user tester --password tester.108 --file commands.txt 
+> uncli --portal https://utilitynetwork.esri.com/portal --service NapervilleElectric_SQLServer --user tester --password tester.108 --file commands.txt --verify true
 

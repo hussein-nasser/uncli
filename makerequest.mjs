@@ -1,9 +1,4 @@
 import fetch from "node-fetch";
-import { logger } from "./logger.mjs";
-
-
-//UNCOMMENT THIS LINE IF YOU DON'T HAVE SECURE CERTIFICATE
-process.env['NODE_TLS_REJECT_UNAUTHORIZED'] = 0
 
 export function makeRequest (opts) {
    
