@@ -6,8 +6,9 @@ import { AdminLog } from "./adminlog.mjs"
 
 import { logger } from "./logger.mjs"
 import  fetch  from "node-fetch"
+import { DH_NOT_SUITABLE_GENERATOR } from "constants";
 //update version
-let version = "0.0.59";
+let version = "0.0.60";
 const GENERATE_TOKEN_TIME_MIN = 30;
 
 let rl = null;
@@ -748,13 +749,25 @@ const inputs = {
                    { 
                        prev [cur["Rule name"]] =  {
                            "totalTime": 0,
-                           "occurrence": 0
+                           "occurrence": 0,
+                           "minTime":  Number.MAX_SAFE_INTEGER,
+                           "maxTime": -1,
+                           "avgTime": 0
                        };
                      }
                 
                      prev [cur["Rule name"]].totalTime = prev [cur["Rule name"]].totalTime + cur["Elapsed Time (ms)"]
-                     prev [cur["Rule name"]].occurrence++
- 
+                      
+                     if (cur["Elapsed Time (ms)"] < prev [cur["Rule name"]].minTime )
+                        prev [cur["Rule name"]].minTime = cur["Elapsed Time (ms)"];
+
+                    if (cur["Elapsed Time (ms)"] > prev [cur["Rule name"]].maxTime )
+                        prev [cur["Rule name"]].maxTime = cur["Elapsed Time (ms)"];
+                     
+                    prev [cur["Rule name"]].occurrence++
+                     
+                    prev [cur["Rule name"]].avgTime = prev [cur["Rule name"]].totalTime / prev [cur["Rule name"]].occurrence
+
                 return prev
             }, {})
 
@@ -763,12 +776,17 @@ const inputs = {
                 const rule = {}
                 rule["Attribute Rule"] = a;
                 rule["Total Cost (ms)"] = parseFloat(arMessages[a].totalTime.toFixed(2))
+                rule["Average Cost (ms)"] = parseFloat(arMessages[a].avgTime.toFixed(2))
+                rule["Max execution time (ms)"] = parseFloat(arMessages[a].maxTime.toFixed(2))
+                rule["Min execution time (ms)"] = parseFloat(arMessages[a].minTime.toFixed(2))
                 rule["Occurrence"] = arMessages[a].occurrence;
                 return rule;
         })
         .sort( (m1, m2) => m2["Total Cost (ms)"] -m1["Total Cost (ms)"])
         console.table(rules)
-       
+
+        const totalARExecution = rules.reduce( (prev, cur) =>  prev + cur["Total Cost (ms)"], 0)
+        console.log(`Total time spend executing attribute rules (${Math.round(totalARExecution)} ms) (${Math.round(totalARExecution/1000)} s) (${Math.round(totalARExecution/(1000*60))} m)`)
          
     },
 
