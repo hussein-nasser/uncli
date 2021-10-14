@@ -7,7 +7,7 @@ import { AdminLog } from "./adminlog.mjs"
 import { logger } from "./logger.mjs"
 import  fetch  from "node-fetch"
 //update version
-let version = "0.0.58";
+let version = "0.0.59";
 const GENERATE_TOKEN_TIME_MIN = 30;
 
 let rl = null;
@@ -674,6 +674,8 @@ const inputs = {
 
     "^arlogs$": async () => {
         console.log(`Querying attribute rules logs for ${parameters.service} ...`)
+        console.log(`Displaying 500 entries only..`)
+
         const result= await adminLog.query([102003], parameters.service)
         const jsonRes = await result.json()
         const arMessages = jsonRes.logMessages
@@ -690,21 +692,9 @@ const inputs = {
                 return m
             })
             .sort( (m1, m2) => m2["Elapsed Time (ms)"]- m1["Elapsed Time (ms)"])
+            .slice(0, 500);
         console.table(arMessages)
-        /*
-        code:102003
-        elapsed:''
-        machine:'DEV0015932.ESRI.COM'
-        message:'requestProperties = {"token":"HfauSFGoSwTMA5KLvsL-I8EORea_KEvz1GcAMNCsvTuzeJ1QuYbQm0EGI7eC2zr1lOm8857U18oZOjG0BeuEwKj7fvCk-_DuWKFvClU5p06SRLE8RjEzPB0gjMTFQnjVnTRmQzZFWXCj1VRssMECQg..","referer":null,"privilege":"ADMINISTER","privileges":["features:user:edit","features:user:fullEdit","features:user:manageVersions","portal:user:viewTracks","premium:user:geocode:stored","premium:user:geocode:temporary","premium:user:networkanalysis:closestfacility","premium:user:networkanalysis:locationallocation","premium:user:networkanalysis:optimizedrouting","premium:user:networkanalysis:origindestinationcostmatrix","premium:user:networkanalysis:routing","premium:user:networkanalysis:servicearea","premium:user:networkanalysis:vehiclerouting","traceNetwork","utilityNetwork","parcelFabric"],"securityProvider":"portal"}'
-        methodName:'GetServerEnvironmentRequestProperties'
-        process:'30940'
-        requestID:'fccb7fba-cba9-4ebb-84b2-cb3645979d8e'
-        source:'RedTrolley_Postgres.MapServer'
-        thread:'29408'
-        time:1634165691074
-        type:'DEBUG'
-        user:'unadmin'
-        */
+       
          
     },
 
@@ -729,18 +719,25 @@ const inputs = {
             .sort( (m1, m2) => m2["Elapsed Time (ms)"]- m1["Elapsed Time (ms)"])
             .reduce( ( prev, cur ) => {
                 if (prev [cur["Rule name"]] === undefined)
-                    prev [cur["Rule name"]] = 0;
-
-                prev [cur["Rule name"]] = cur["Elapsed Time (ms)"]
+                   { 
+                       prev [cur["Rule name"]] =  {
+                           "totalTime": 0,
+                           "occurance": 0
+                       };
+                     }
+                
+                     prev [cur["Rule name"]].totalTime = prev [cur["Rule name"]].totalTime + cur["Elapsed Time (ms)"]
+                     prev [cur["Rule name"]].occurance++
+ 
                 return prev
             }, {})
 
         const rules = Object.keys(arMessages)
         .map(a => {
-
                 const rule = {}
                 rule["Attribute Rule"] = a;
-                rule["Total Cost (ms)"] = arMessages[a];
+                rule["Total Cost (ms)"] = parseFloat(arMessages[a].totalTime.toFixed(2))
+                rule["Occurance"] = arMessages[a].occurance;
                 return rule;
         })
         .sort( (m1, m2) => m2["Total Cost (ms)"] -m1["Total Cost (ms)"])

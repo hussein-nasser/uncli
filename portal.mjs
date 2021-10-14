@@ -109,9 +109,20 @@ export class Portal{
                         token: this.token,
                         f: "json"
                     }
-             
+                    
+                    let allServices = []
                     const services = await makeRequest({method: 'POST', url: servicesUrl, params: postJson })
-                    resolve(services);
+                    allServices = allServices.concat(services.services);
+                    const folders = services.folders;
+                    for (let f = 0; f < folders.length; f++)
+                     {
+                        const folderUrl = servicesUrl + "/" + folders[f];
+                        const folderServices = await makeRequest({method: 'POST', url: folderUrl, params: postJson })
+                        allServices = allServices.concat(folderServices.services)
+                    }
+                        
+                         
+                    resolve({"services": allServices});
                 }
                 catch(ex) {
                     reject(ex) 
