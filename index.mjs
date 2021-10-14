@@ -102,9 +102,9 @@ async function connect(parameters) {
     un = new UtilityNetwork(token, serviceUrl, parameters.gdbversion)
     //create a new admin object (user might not be admin we won't use it until the user call log )
     adminLog = new AdminLog(token, portal.serverUrl)
-    console.log("Loading utility network...")
+    logger.info("Loading utility network...")
     await un.load();
-    console.log("Connected.")
+    logger.info("Connected.")
     /*test here*/
  
     //if user specified file path open it read all commands and execute them
@@ -673,12 +673,26 @@ const inputs = {
     },
 
     "^arlogs$": async () => {
+        const topLogCount = 200;
+        const pageSize = 10000
         console.log(`Querying attribute rules logs for ${parameters.service} ...`)
-        console.log(`Displaying 500 entries only..`)
+        console.log(`Displaying top ${topLogCount} entries only..`)
 
-        const result= await adminLog.query([102003], parameters.service)
-        const jsonRes = await result.json()
-        const arMessages = jsonRes.logMessages
+        let result= await adminLog.query([102003], [parameters.service+ ".MapServer"], topLogCount)
+        let jsonRes = await result.json()
+        let allMessages = [].concat(jsonRes.logMessages)
+        
+        while (jsonRes.hasMore && allMessages.filter(m => m.message.indexOf("Attribute rule execution complete:") > -1).length < topLogCount )
+        {  
+            //start paging
+            logger.info(`Aggregating messages... total so far ${allMessages.length} debug entries but more left, pulling logs before ${new Date(jsonRes.endTime)}`)
+            result= await adminLog.query([102003], [parameters.service + ".MapServer"], pageSize, jsonRes.endTime)
+            jsonRes = await result.json()
+            allMessages = allMessages.concat(jsonRes.logMessages)
+        }  
+
+
+        const arMessages = allMessages
             .filter(m => m.message.indexOf("Attribute rule execution complete:") > -1)
             .map (m =>  JSON.parse(m.message.replace("Attribute rule execution complete:", "")))
             .map( m => {
@@ -692,7 +706,7 @@ const inputs = {
                 return m
             })
             .sort( (m1, m2) => m2["Elapsed Time (ms)"]- m1["Elapsed Time (ms)"])
-            .slice(0, 500);
+            .slice(0, topLogCount);
         console.table(arMessages)
        
          
@@ -700,10 +714,22 @@ const inputs = {
 
 
     "^arlogs --byrule$": async () => {
-        console.log(`Querying attribute rules logs for ${parameters.service} ...`)
-        const result= await adminLog.query([102003], parameters.service)
-        const jsonRes = await result.json()
-        const arMessages = jsonRes.logMessages
+        const pageSize = 10000 //maximum messages per page
+        logger.info(`Querying attribute rules logs for ${parameters.service} ...`)
+        let result= await adminLog.query([102003], [parameters.service + ".MapServer"], pageSize)
+        let jsonRes = await result.json()
+        let allMessages = [].concat(jsonRes.logMessages)
+        
+        while (jsonRes.hasMore)
+        {  
+            //start paging
+            logger.info(`Aggregating messages... total so far ${allMessages.length} debug entries but more left, pulling logs before ${new Date(jsonRes.endTime)}`)
+            result= await adminLog.query([102003], [parameters.service + ".MapServer"], pageSize, jsonRes.endTime)
+            jsonRes = await result.json()
+            allMessages = allMessages.concat(jsonRes.logMessages)
+        }  
+
+        const arMessages = allMessages
             .filter(m => m.message.indexOf("Attribute rule execution complete:") > -1)
             .map (m =>  JSON.parse(m.message.replace("Attribute rule execution complete:", "")))
             .map( m => {
@@ -722,12 +748,12 @@ const inputs = {
                    { 
                        prev [cur["Rule name"]] =  {
                            "totalTime": 0,
-                           "occurance": 0
+                           "occurrence": 0
                        };
                      }
                 
                      prev [cur["Rule name"]].totalTime = prev [cur["Rule name"]].totalTime + cur["Elapsed Time (ms)"]
-                     prev [cur["Rule name"]].occurance++
+                     prev [cur["Rule name"]].occurrence++
  
                 return prev
             }, {})
@@ -737,7 +763,7 @@ const inputs = {
                 const rule = {}
                 rule["Attribute Rule"] = a;
                 rule["Total Cost (ms)"] = parseFloat(arMessages[a].totalTime.toFixed(2))
-                rule["Occurance"] = arMessages[a].occurance;
+                rule["Occurrence"] = arMessages[a].occurrence;
                 return rule;
         })
         .sort( (m1, m2) => m2["Total Cost (ms)"] -m1["Total Cost (ms)"])

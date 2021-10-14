@@ -13,8 +13,8 @@ export class AdminLog {
         this.token = token;         
     }
 
-    query (codes, serviceName ="*", pageSize = 10000) 
-    {
+    query (codes, serviceName ="*", pageSize = 100000, startTime = null, endTime = null) 
+    {   
         const url =  this.adminServerUrl  + "/logs/query?f=pjson"
         const level = "DEBUG"
         const filterType="json"
@@ -24,7 +24,13 @@ export class AdminLog {
             "services": serviceName
         }
       
-        const queryLogUrl = url + `&token=${token}&level=${level}&filterType=${filterType}&filter=${encodeURIComponent(JSON.stringify(filter))}&pageSize=${pageSize}`
+        let queryLogUrl = url + `&token=${token}&level=${level}&filterType=${filterType}&filter=${encodeURIComponent(JSON.stringify(filter))}&pageSize=${pageSize}`
+        if (startTime != null)
+            queryLogUrl += `&startTime=${startTime}`
+
+        if (endTime != null)
+            queryLogUrl += `&endTime=${endTime}`
+
         //logger.info(queryLogUrl);
         return fetch(queryLogUrl);
     }
