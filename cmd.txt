@@ -1,1 +1,1 @@
-count --system
+arlogs --byrule

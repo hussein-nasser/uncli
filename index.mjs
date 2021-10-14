@@ -2,10 +2,12 @@ import readline from "readline"
 import  fs from "fs";
 import { Portal } from "./portal.mjs"
 import { UtilityNetwork } from "./utilitynetwork.node.mjs"
+import { AdminLog } from "./adminlog.mjs"
+
 import { logger } from "./logger.mjs"
 import  fetch  from "node-fetch"
 //update version
-let version = "0.0.56";
+let version = "0.0.57";
 const GENERATE_TOKEN_TIME_MIN = 30;
 
 let rl = null;
@@ -14,7 +16,7 @@ let rl = null;
 //uncli --portal https://utilitynetwork.esri.com/portal --service AllStar_oracle --user unadmin --password unadmin.108
 let portal = null;
 let un  = null;
-
+let adminLog = null;
 
 //parse input for parameters 
 function parseInput(){
@@ -98,6 +100,8 @@ async function connect(parameters) {
 
     const serviceUrl =  portal.serverUrl + `/rest/services/${parameters.service}/FeatureServer`
     un = new UtilityNetwork(token, serviceUrl, parameters.gdbversion)
+    //create a new admin object (user might not be admin we won't use it until the user call log )
+    adminLog = new AdminLog(token, portal.serverUrl)
     console.log("Loading utility network...")
     await un.load();
     console.log("Connected.")
@@ -172,6 +176,9 @@ const inputs = {
             "export subnetworks --deleted": "Export all subnetworks with ACK that are deleted ",
             "count": "Lists the number of rows in all feature layers.",
             "count --system": "Lists the number of rows in system layers.",
+            "connect --service": "Connects to the another service",
+            "arlogs": "Lists attribute rules execution logs (requires admin)",
+            "arlogs --byrule": "Lists attribute rules execution summary by rule (requires admin)",
             "whoami": "Lists the current login info",
             "clear": "Clears this screen",
             "quit": "Exit this program"
@@ -665,6 +672,82 @@ const inputs = {
 
     },
 
+    "^arlogs$": async () => {
+        console.log(`Querying attribute rules logs for ${parameters.service} ...`)
+        const result= await adminLog.query([102003], parameters.service)
+        const jsonRes = await result.json()
+        const arMessages = jsonRes.logMessages
+            .filter(m => m.message.indexOf("Attribute rule execution complete:") > -1)
+            .map (m =>  JSON.parse(m.message.replace("Attribute rule execution complete:", "")))
+            .map( m => {
+                m["Elapsed Time (ms)"] =  Math.round(m["Elapsed Time"]*1000000)/1000
+               // m["Arcade Evaluation Time:"] = Math.round(m["Arcade Evaluation Time:"]*1000,6)
+                //m.ArcadeTime = m["Arcade Evaluation Time:"]
+                
+                delete  m["Arcade Evaluation Time:"];
+                delete  m["Elapsed Time"];
+                //delete m ['GlobalID'];
+                return m
+            })
+            .sort( (m1, m2) => m2["Elapsed Time (ms)"]- m1["Elapsed Time (ms)"])
+        console.table(arMessages)
+        /*
+        code:102003
+        elapsed:''
+        machine:'DEV0015932.ESRI.COM'
+        message:'requestProperties = {"token":"HfauSFGoSwTMA5KLvsL-I8EORea_KEvz1GcAMNCsvTuzeJ1QuYbQm0EGI7eC2zr1lOm8857U18oZOjG0BeuEwKj7fvCk-_DuWKFvClU5p06SRLE8RjEzPB0gjMTFQnjVnTRmQzZFWXCj1VRssMECQg..","referer":null,"privilege":"ADMINISTER","privileges":["features:user:edit","features:user:fullEdit","features:user:manageVersions","portal:user:viewTracks","premium:user:geocode:stored","premium:user:geocode:temporary","premium:user:networkanalysis:closestfacility","premium:user:networkanalysis:locationallocation","premium:user:networkanalysis:optimizedrouting","premium:user:networkanalysis:origindestinationcostmatrix","premium:user:networkanalysis:routing","premium:user:networkanalysis:servicearea","premium:user:networkanalysis:vehiclerouting","traceNetwork","utilityNetwork","parcelFabric"],"securityProvider":"portal"}'
+        methodName:'GetServerEnvironmentRequestProperties'
+        process:'30940'
+        requestID:'fccb7fba-cba9-4ebb-84b2-cb3645979d8e'
+        source:'RedTrolley_Postgres.MapServer'
+        thread:'29408'
+        time:1634165691074
+        type:'DEBUG'
+        user:'unadmin'
+        */
+         
+    },
+
+
+    "^arlogs --byrule$": async () => {
+        console.log(`Querying attribute rules logs for ${parameters.service} ...`)
+        const result= await adminLog.query([102003], parameters.service)
+        const jsonRes = await result.json()
+        const arMessages = jsonRes.logMessages
+            .filter(m => m.message.indexOf("Attribute rule execution complete:") > -1)
+            .map (m =>  JSON.parse(m.message.replace("Attribute rule execution complete:", "")))
+            .map( m => {
+                m["Elapsed Time (ms)"] =  Math.round(m["Elapsed Time"]*1000000)/1000
+               // m["Arcade Evaluation Time:"] = Math.round(m["Arcade Evaluation Time:"]*1000,6)
+                //m.ArcadeTime = m["Arcade Evaluation Time:"]
+                
+                delete  m["Arcade Evaluation Time:"];
+                delete  m["Elapsed Time"];
+                //delete m ['GlobalID'];
+                return m
+            })
+            .sort( (m1, m2) => m2["Elapsed Time (ms)"]- m1["Elapsed Time (ms)"])
+            .reduce( ( prev, cur ) => {
+                if (prev [cur["Rule name"]] === undefined)
+                    prev [cur["Rule name"]] = 0;
+
+                prev [cur["Rule name"]] = cur["Elapsed Time (ms)"]
+                return prev
+            }, {})
+
+        const rules = Object.keys(arMessages)
+        .map(a => {
+
+                const rule = {}
+                rule["Attribute Rule"] = a;
+                rule["Total Cost (ms)"] = arMessages[a];
+                return rule;
+        })
+        .sort( (m1, m2) => m2["Total Cost (ms)"] -m1["Total Cost (ms)"])
+        console.table(rules)
+       
+         
+    },
 
     "^version$": () => console.log(version),
     "^clear$|^cls$": () => console.clear(),
