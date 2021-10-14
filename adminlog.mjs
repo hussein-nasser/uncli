@@ -25,7 +25,7 @@ export class AdminLog {
         }
       
         const queryLogUrl = url + `&token=${token}&level=${level}&filterType=${filterType}&filter=${encodeURIComponent(JSON.stringify(filter))}&pageSize=${pageSize}`
-        logger.info(queryLogUrl);
+        //logger.info(queryLogUrl);
         return fetch(queryLogUrl);
     }
 
