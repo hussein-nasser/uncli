@@ -179,7 +179,7 @@ const inputs = {
             "count --system": "Lists the number of rows in system layers.",
             "connect --service": "Connects to the another service",
             "arlogs": "Lists attribute rules execution logs (requires admin)",
-            "arlogs --byrule": "Lists attribute rules execution summary by rule (requires admin)",
+            "arlogs --byrule [--minguid --maxguid]": "Lists attribute rules execution summary by rule (requires admin), --maxguid and --minguid show the GUID of the feature",
             "whoami": "Lists the current login info",
             "clear": "Clears this screen",
             "quit": "Exit this program"
@@ -714,7 +714,18 @@ const inputs = {
     },
 
 
-    "^arlogs --byrule$": async () => {
+    "^arlogs --byrule": async input => {
+        //--minguid to show min guid
+        //--maxguid to show max guid
+        const inputParam = input.match(/--byrule .*/gm)
+        let showMaxGuid = false
+        let showMinGuid = false
+        if (inputParam != null && inputParam.length > 0 && inputParam[0].indexOf("--maxguid") > -1)
+            showMaxGuid = true
+
+        if (inputParam != null && inputParam.length > 0 && inputParam[0].indexOf("--minguid") > -1)
+            showMinGuid = true
+
         const pageSize = 10000 //maximum messages per page
         logger.info(`Querying attribute rules logs for ${parameters.service} ...`)
         let result= await adminLog.query([102003], [parameters.service + ".MapServer"], pageSize)
@@ -752,17 +763,23 @@ const inputs = {
                            "occurrence": 0,
                            "minTime":  Number.MAX_SAFE_INTEGER,
                            "maxTime": -1,
-                           "avgTime": 0
+                           "avgTime": 0,
+                           "maxGuid": null,
+                           "minGuid": null
                        };
                      }
                 
                      prev [cur["Rule name"]].totalTime = prev [cur["Rule name"]].totalTime + cur["Elapsed Time (ms)"]
                       
-                     if (cur["Elapsed Time (ms)"] < prev [cur["Rule name"]].minTime )
+                     if (cur["Elapsed Time (ms)"] < prev [cur["Rule name"]].minTime ) {
                         prev [cur["Rule name"]].minTime = cur["Elapsed Time (ms)"];
+                        prev [cur["Rule name"]].minGuid = cur["GlobalID"];
+                     }
 
-                    if (cur["Elapsed Time (ms)"] > prev [cur["Rule name"]].maxTime )
+                    if (cur["Elapsed Time (ms)"] > prev [cur["Rule name"]].maxTime ){
                         prev [cur["Rule name"]].maxTime = cur["Elapsed Time (ms)"];
+                        prev [cur["Rule name"]].maxGuid = cur["GlobalID"];
+                    }
                      
                     prev [cur["Rule name"]].occurrence++
                      
@@ -776,10 +793,12 @@ const inputs = {
                 const rule = {}
                 rule["Attribute Rule"] = a;
                 rule["Total Cost (ms)"] = parseFloat(arMessages[a].totalTime.toFixed(2))
-                rule["Average Cost (ms)"] = parseFloat(arMessages[a].avgTime.toFixed(2))
+                if (!showMinGuid && !showMaxGuid) rule["Average Cost (ms)"] = parseFloat(arMessages[a].avgTime.toFixed(2))
                 rule["Max execution time (ms)"] = parseFloat(arMessages[a].maxTime.toFixed(2))
+                if (showMaxGuid) rule["Max GUID"] = arMessages[a].maxGuid
                 rule["Min execution time (ms)"] = parseFloat(arMessages[a].minTime.toFixed(2))
-                rule["Occurrence"] = arMessages[a].occurrence;
+                if (showMinGuid) rule["Min GUID"] = arMessages[a].minGuid
+                if (!showMinGuid && !showMaxGuid) rule["Occurrence"] = arMessages[a].occurrence;
                 return rule;
         })
         .sort( (m1, m2) => m2["Total Cost (ms)"] -m1["Total Cost (ms)"])
