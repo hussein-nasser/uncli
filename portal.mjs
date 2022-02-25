@@ -3,13 +3,13 @@ import { logger } from "./logger.mjs"
 
 export class Portal{
         
-    constructor(url, username, password, expiration = 300)
+    constructor(url, username, password, expiration = 300, serverUrl = undefined)
     {
         this.url = url;
         this.username = username;
         this.password = password;
         this.expiration = expiration;
-        this.serverUrl = "bad";
+        this.serverUrl = serverUrl;
     }
 
 
@@ -20,7 +20,6 @@ export class Portal{
         
                 try { 
 
-                    //https://utilitynetwork.esri.com/portal/sharing/rest/portals/self/servers?f=json
                     const tokenUrl = self.url + "/sharing/rest/generateToken";
                    
                     const postJson = {
@@ -44,9 +43,9 @@ export class Portal{
                   
             }
             catch(ex){
-                logger.error(ex.status.message)
-                console.error(ex.status.errno)
-                reject(`Failed to connect to portal, check your username or password or add --verify false if you are using a self-signed certificate. Normally a production system should have a valid certificate signed by a CA and you should NOT disable verification in that case.)`)
+                logger.error(ex?.status?.message)
+                console.error(ex?.status?.errno)
+                reject(`Failed to connect to portal, check your username or password or add --verify false if you are using a self-signed certificate. Normally a production system should have a valid certificate signed by a CA and you should NOT disable verification in that case.) \n\n${ex}`)
             }
 
             }
@@ -55,32 +54,54 @@ export class Portal{
     }
  
     async updateServices () {
-
-        try {
-
-            const postJsonServers= {
-                f: "json",
-                token: this.token
+        const self = this;
+        return new Promise( async (resolve, reject) => {
+            //if the user specified a serverUrl no need to do anything
+            if (self.serverUrl !== undefined) {
+                logger.info(`Using server ${self.serverUrl} supplied in the --server parameter`)
+                resolve(self.serverUrl);
+                return;
             }
-    
-            const serversUrl =  this.url + "/sharing/rest/portals/self/servers"
-            logger.info( "About to query federated servers");
-                  
-            //query for federated servers.
-            const servers = await makeRequest({method: 'POST', url: serversUrl, params: postJsonServers });
-            
-            //get the first one
-            if (servers.servers.length === 0) 
-                reject( "No federeated servers");
-    
-            this.serverUrl = servers.servers[0].url;
-            logger.info(`Found server url ${this.serverUrl}`)
-        }
-       catch(ex){
-           logger.error(ex)
-       }
 
-    }
+            //else we need to calculate it
+            try {
+
+                const postJsonServers= {
+                    f: "json",
+                    token: self.token
+                }
+        
+                const serversUrl =  self.url + "/sharing/rest/portals/self/servers"
+                logger.info( "About to query federated servers");
+                    
+                //query for federated servers.
+                const servers = await makeRequest({method: 'POST', url: serversUrl, params: postJsonServers });
+                
+                //if we don't have any federated servers quit.
+                if (servers.servers.length === 0) 
+                    {
+                        reject( "No federeated servers");
+                    return
+                }
+                
+                //if we have more than one then we let the user pick.
+                if (servers.servers.length > 1){
+                    let serverUrls = "";
+                    servers.servers.forEach(s => serverUrls += '\n  * ' + s.url + '\n' ) 
+                    reject("more than one federated server found, run the command with --server and specify one of the servers below\n" + serverUrls)
+                }
+                this.serverUrl = servers.servers[0].url;
+                resolve(self.serverUrl)
+                logger.info(`Found one federate server, using server url ${self.serverUrl} by default`)
+            }
+        catch(ex){
+            logger.error(ex)
+            reject(ex)
+            }       
+         });
+
+    } 
+
     //get the feature service definition 
     async serviceDef(serviceName) {
         this.token = this.token;

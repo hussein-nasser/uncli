@@ -1,3 +1,4 @@
+subnetworks
 arlogs --byrule --maxguid
 arlogs --byrule --minguid
 arlogs --byrule

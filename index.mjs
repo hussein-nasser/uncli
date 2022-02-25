@@ -6,15 +6,11 @@ import { AdminLog } from "./adminlog.mjs"
 
 import { logger } from "./logger.mjs"
 import  fetch  from "node-fetch"
-import { DH_NOT_SUITABLE_GENERATOR } from "constants";
 //update version
-let version = "0.0.60";
+let version = "0.0.61";
 const GENERATE_TOKEN_TIME_MIN = 30;
 
 let rl = null;
-
-
-//uncli --portal https://utilitynetwork.esri.com/portal --service AllStar_oracle --user unadmin --password unadmin.108
 let portal = null;
 let un  = null;
 let adminLog = null;
@@ -30,9 +26,11 @@ function parseInput(){
           "--command",
           "--gdbversion",
           "--file",
-          "--verify"
+          "--verify",
+          "--server"
            ]     
-
+        
+      //null marked parmaters are required
       const params = {
           "portal": null,
           "service": null,
@@ -41,7 +39,8 @@ function parseInput(){
           "command": "",
           "gdbversion": "SDE.DEFAULT",
           "file": "",
-          "verify": "true"
+          "verify": "true",
+          "server": undefined
       }
 
       for (let i = 0; i < process.argv.length ; i++){
@@ -54,9 +53,10 @@ function parseInput(){
 
       if (Object.values(params).includes(null))
       {
-        console.log ("HELP: uncli --portal https://unportal.domain.com/portal --service servicename --user username --password password [--gdbversion* user.version --file commandfile* --verify true|false]")    
+        console.log ("HELP: uncli --portal https://unportal.domain.com/portal --service servicename --user username --password password [--gdbversion* user.version --server  https://federatedserver.domain.com/server --file commandfile* --verify true|false]")    
         console.log("--file commandfile is optional and you can pass a path to a file with a list of command to execute. ")
         console.log("--gdbversion is optional and allows the UN to be opened in that version. When not specified sde.DEFAULT is used.")
+        console.log("--server is optional except when there are more than one federated server sites to the portal. If the portal only has one server it will be selected.")
         process.exit();
       }
      
@@ -65,7 +65,7 @@ function parseInput(){
 
 //
 async function getToken(parameters) {
-    portal = new Portal(parameters.portal, parameters.user, parameters.password)
+    portal = new Portal(parameters.portal, parameters.user, parameters.password,300, parameters.server)
     logger.info("About to connect..")
     const token = await portal.connect()
     logger.info(`Token generanted successfully.`)
@@ -812,7 +812,7 @@ const inputs = {
     "^version$": () => console.log(version),
     "^clear$|^cls$": () => console.clear(),
     "^quit$": () => {
-        rl.close();
+        if (rl) rl.close();
         process.exit();
     },
     "^exit$|^quit$|^bye$": () => {
