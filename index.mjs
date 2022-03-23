@@ -731,15 +731,16 @@ const inputs = {
         const endTime = Date.now();
         let result= await adminLog.query([102002], [parameters.service+ ".MapServer"], topLogCount, startTime ,endTime , "VERBOSE")
         let jsonRes = await result.json()
-        let allMessages = [].concat(jsonRes.logMessages)
-        
-        while (jsonRes.hasMore && allMessages.filter(m => m.message.indexOf(" Environment -") > -1).length < topLogCount )
+        let allMessages = [].concat(jsonRes.logMessages) 
+        allMessages = allMessages.filter(m => m.message.indexOf(" Environment -") > -1)
+        while (jsonRes.hasMore)
         {  
             //start paging
-            logger.info(`Aggregating messages... total so far ${allMessages.length} debug entries but more left, pulling logs before ${new Date(jsonRes.endTime)}`)
+            logger.info(`Aggregating messages... total so far ${allMessages.length} entries but more left, pulling logs before ${new Date(jsonRes.endTime)}`)
             result= await adminLog.query([102002], [parameters.service + ".MapServer"], pageSize, jsonRes.endTime)
             jsonRes = await result.json()
-            allMessages = allMessages.concat(jsonRes.logMessages)
+  
+            allMessages = allMessages.concat(jsonRes.logMessages.filter(m => m.message.indexOf(" Environment -") > -1))
         }  
 
         allMessages.forEach(m => console.log(m.message))

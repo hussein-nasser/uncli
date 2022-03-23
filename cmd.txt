@@ -1,1 +1,1 @@
-tracelogs --m 300
+tracelogs --m 3000
