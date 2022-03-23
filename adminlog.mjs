@@ -13,10 +13,10 @@ export class AdminLog {
         this.token = token;         
     }
 
-    query (codes, serviceName ="*", pageSize = 100000, startTime = null, endTime = null) 
+    query (codes, serviceName ="*", pageSize = 100000, startTime = null, endTime = null, logLevel = "DEBUG") 
     {   
         const url =  this.adminServerUrl  + "/logs/query?f=pjson"
-        const level = "DEBUG"
+        const level =  logLevel
         const filterType="json"
         const token = this.token
         const filter = {

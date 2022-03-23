@@ -1,4 +1,1 @@
-subnetworks
-arlogs --byrule --maxguid
-arlogs --byrule --minguid
-arlogs --byrule
+tracelogs --m 300
