@@ -1,1 +1,2 @@
-tracelogs --m 3000
+arlogs --age 1
+exit

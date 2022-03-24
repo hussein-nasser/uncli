@@ -7,7 +7,7 @@ import { AdminLog } from "./adminlog.mjs"
 import { logger } from "./logger.mjs"
 import  fetch  from "node-fetch"
 //update version
-let version = "0.0.63";
+let version = "0.0.64";
 const GENERATE_TOKEN_TIME_MIN = 30;
 
 let rl = null;
@@ -178,8 +178,10 @@ const inputs = {
             "count": "Lists the number of rows in all feature layers.",
             "count --system": "Lists the number of rows in system layers.",
             "connect --service": "Connects to the another service",
-            "tracelogs --m <minutes>": "Lists utility network trace summary logs for the last x minutes (requires admin)",
-            "arlogs": "Lists attribute rules execution logs (requires admin)",
+            "tracelogs --age <minutes>": "Lists utility network trace summary logs for the last x minutes (requires admin)",
+            "validatelogs --age <minutes>": "Lists utility network validate summary logs for the last x minutes (requires admin)",
+            "updatesubnetworkslog --age <minutes>": "Lists utility network update subnetworks summary logs for the last x minutes (requires admin)",
+            "arlogs --age <minutes>": "Lists attribute rules execution logs for the last x minutes  (requires admin)",
             "arlogs --byrule [--minguid --maxguid]": "Lists attribute rules execution summary by rule (requires admin), --maxguid and --minguid show the GUID of the feature",
             "whoami": "Lists the current login info",
             "clear": "Clears this screen",
@@ -674,17 +676,27 @@ const inputs = {
 
     },
 
-    "^arlogs$": async () => {
+    "^arlogs --age": async input => {
         const topLogCount = 200;
         const pageSize = 10000
-        console.log(`Querying attribute rules logs for ${parameters.service} ...`)
-        console.log(`Displaying top ${topLogCount} entries only..`)
 
-        let result= await adminLog.query([102003], [parameters.service+ ".MapServer"], topLogCount)
+        
+        const inputParam = input.match(/--age .*/gm)
+        let mins = 30;  //query logs for the last 30 minutes
+        if (inputParam != null && inputParam.length > 0)
+            mins = inputParam[0].replace("--age ", "")
+
+
+       console.log(`Querying attribute rules logs for ${parameters.service} for the last ${mins} minutes ...`)
+
+       const startTime = Date.now() - mins*60*1000
+       const endTime = Date.now();
+
+        let result= await adminLog.query([102003], [parameters.service+ ".MapServer"], topLogCount, startTime, endTime , "DEBUG")
         let jsonRes = await result.json()
         let allMessages = [].concat(jsonRes.logMessages)
         
-        while (jsonRes.hasMore && allMessages.filter(m => m.message.indexOf("Attribute rule execution complete:") > -1).length < topLogCount )
+        while (jsonRes.hasMore  )
         {  
             //start paging
             logger.info(`Aggregating messages... total so far ${allMessages.length} debug entries but more left, pulling logs before ${new Date(jsonRes.endTime)}`)
@@ -717,14 +729,14 @@ const inputs = {
 
 
     
-    "^tracelogs --m": async input => {
+    "^tracelogs --age": async input => {
         const topLogCount = 1000;
         const pageSize = 10000
 
-        const inputParam = input.match(/--m .*/gm)
+        const inputParam = input.match(/--age .*/gm)
         let mins = 30;  //query logs for the last 30 minutes
         if (inputParam != null && inputParam.length > 0)
-            mins = inputParam[0].replace("--m ", "")
+            mins = inputParam[0].replace("--age ", "")
  
         console.log(`Querying trace logs for ${parameters.service} for the last ${mins} minutes ...`)
         const startTime = Date.now() - mins*60*1000
@@ -732,20 +744,124 @@ const inputs = {
         let result= await adminLog.query([102002], [parameters.service+ ".MapServer"], topLogCount, startTime ,endTime , "VERBOSE")
         let jsonRes = await result.json()
         let allMessages = [].concat(jsonRes.logMessages) 
-        allMessages = allMessages.filter(m => m.message.indexOf(" Environment -") > -1)
+        allMessages = allMessages.filter(m => m.message.indexOf("------ Trace Parameters ----") > -1)
         while (jsonRes.hasMore)
         {  
             //start paging
             logger.info(`Aggregating messages... total so far ${allMessages.length} entries but more left, pulling logs before ${new Date(jsonRes.endTime)}`)
-            result= await adminLog.query([102002], [parameters.service + ".MapServer"], pageSize, jsonRes.endTime)
+            result= await adminLog.query([102002], [parameters.service + ".MapServer"], pageSize, jsonRes.endTime, null, "VERBOSE")
             jsonRes = await result.json()
   
-            allMessages = allMessages.concat(jsonRes.logMessages.filter(m => m.message.indexOf(" Environment -") > -1))
+            allMessages = allMessages.concat(jsonRes.logMessages.filter(m => m.message.indexOf("------ Trace Parameters ----") > -1))
         }  
+        allMessages.forEach(m => {
+            const newMessage = Object.assign({}, m);
+            delete newMessage.message
+            delete newMessage.source;
+            delete newMessage.machine;
+            delete newMessage.type;
+            delete newMessage.requestID;
+            delete newMessage.thread;
+            delete newMessage.time;
 
-        allMessages.forEach(m => console.log(m.message))
+            console.table([newMessage])
+            console.log(m.message)  
+        })
          
     },
+
+
+    
+    "^validatelogs --age": async input => {
+      
+        const topLogCount = 1000;
+        const pageSize = 10000
+
+        const inputParam = input.match(/--age .*/gm)
+        let mins = 30;  //query logs for the last 30 minutes
+        if (inputParam != null && inputParam.length > 0)
+            mins = inputParam[0].replace("--age ", "")
+ 
+        console.log(`Querying validate logs for ${parameters.service} for the last ${mins} minutes ...`)
+        const startTime = Date.now() - mins*60*1000
+        const endTime = Date.now();
+        let result= await adminLog.query([102003], [parameters.service+ ".MapServer"], topLogCount, startTime ,endTime , "VERBOSE")
+        let jsonRes = await result.json()
+        let allMessages = [].concat(jsonRes.logMessages) 
+        allMessages = allMessages.filter(m => m.message.indexOf("-------- Environment ---") > -1 && m.message.indexOf("------ Trace Parameters ----") < 0)
+        while (jsonRes.hasMore)
+        {  
+            //start paging
+            logger.info(`Aggregating messages... total so far ${allMessages.length} entries but more left, pulling logs before ${new Date(jsonRes.endTime)}`)
+            result= await adminLog.query([102003], [parameters.service + ".MapServer"], pageSize, jsonRes.endTime, null, "VERBOSE")
+            jsonRes = await result.json()
+  
+            allMessages = allMessages.concat(jsonRes.logMessages.filter(m => m.message.indexOf("-------- Environment ---") > -1 && m.message.indexOf("------ Trace Parameters ----") == -1))
+        }  
+
+    
+        allMessages.forEach(m => {
+            const newMessage = Object.assign({}, m);
+            delete newMessage.message
+            delete newMessage.source;
+            delete newMessage.machine;
+            delete newMessage.type;
+            delete newMessage.requestID;
+            delete newMessage.thread;
+            delete newMessage.time;
+
+            console.table([newMessage])
+            console.log(m.message)  
+        })
+
+    },
+
+
+
+    
+    "^updatesubnetworkslogs --age": async input => {
+        const topLogCount = 1000;
+        const pageSize = 10000
+
+        const inputParam = input.match(/--age .*/gm)
+        let mins = 30;  //query logs for the last 30 minutes
+        if (inputParam != null && inputParam.length > 0)
+            mins = inputParam[0].replace("--age ", "")
+ 
+        console.log(`Querying subnetwork logs for ${parameters.service} for the last ${mins} minutes ...`)
+        const startTime = Date.now() - mins*60*1000
+        const endTime = Date.now();
+        let result= await adminLog.query([102003], [parameters.service+ ".MapServer"], topLogCount, startTime ,endTime , "VERBOSE")
+        let jsonRes = await result.json()
+        let allMessages = [].concat(jsonRes.logMessages) 
+        allMessages = allMessages.filter(m => m.message.indexOf("---- Subnetwork Parameters ----") > -1)
+        while (jsonRes.hasMore)
+        {  
+            //start paging
+            logger.info(`Aggregating messages... total so far ${allMessages.length} entries but more left, pulling logs before ${new Date(jsonRes.endTime)}`)
+            result= await adminLog.query([102003], [parameters.service + ".MapServer"], pageSize, jsonRes.endTime, null, "VERBOSE")
+            jsonRes = await result.json()
+  
+            allMessages = allMessages.concat(jsonRes.logMessages.filter(m => m.message.indexOf("---- Subnetwork Parameters ----") > -1))
+        }  
+        allMessages.forEach(m => {
+            const newMessage = Object.assign({}, m);
+            delete newMessage.message
+            delete newMessage.source;
+            delete newMessage.machine;
+            delete newMessage.type;
+            delete newMessage.requestID;
+            delete newMessage.thread;
+            delete newMessage.time;
+
+            console.table([newMessage])
+            console.log(m.message)  
+        })
+         
+    },
+
+
+
     "^arlogs --byrule": async input => {
         //--minguid to show min guid
         //--maxguid to show max guid
