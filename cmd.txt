@@ -1,2 +1,3 @@
-arlogs --age 1
+trace --subnetwork NW53-22313
+topsql --age 2
 exit

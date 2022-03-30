@@ -7,7 +7,7 @@ import { AdminLog } from "./adminlog.mjs"
 import { logger } from "./logger.mjs"
 import  fetch  from "node-fetch"
 //update version
-let version = "0.0.64";
+let version = "0.0.65";
 const GENERATE_TOKEN_TIME_MIN = 30;
 
 let rl = null;
@@ -183,6 +183,8 @@ const inputs = {
             "updatesubnetworkslog --age <minutes>": "Lists utility network update subnetworks summary logs for the last x minutes (requires admin)",
             "arlogs --age <minutes>": "Lists attribute rules execution logs for the last x minutes  (requires admin)",
             "arlogs --byrule [--minguid --maxguid]": "Lists attribute rules execution summary by rule (requires admin), --maxguid and --minguid show the GUID of the feature",
+            "topsql --age <minutes>": "Lists all queries executed in the last x minutes  (requires admin)",
+
             "whoami": "Lists the current login info",
             "clear": "Clears this screen",
             "quit": "Exit this program"
@@ -726,8 +728,7 @@ const inputs = {
          
     },
 
-
-
+ 
     
     "^tracelogs --age": async input => {
         const topLogCount = 1000;
@@ -860,6 +861,120 @@ const inputs = {
          
     },
 
+
+    
+    "^topsql --age": async input => {
+        const topLogCount = 1000;
+        const pageSize = 10000
+
+        const inputParam = input.match(/--age .*/gm)
+        let mins = 30;  //query logs for the last 30 minutes
+        if (inputParam != null && inputParam.length > 0)
+            mins = inputParam[0].replace("--age ", "")
+ 
+        console.log(`Querying cursor sql logs for ${parameters.service} for the last ${mins} minutes ...`)
+        const startTime = Date.now() - mins*60*1000
+        const endTime = Date.now();
+        let result= await adminLog.query([102023], [parameters.service+ ".MapServer"], topLogCount, startTime ,endTime , "DEBUG")
+        let jsonRes = await result.json()
+        let allMessages = [].concat(jsonRes.logMessages) 
+        allMessages = allMessages.filter(m => m.message.indexOf("EndCursor;") > -1)
+        while (jsonRes.hasMore)
+        {  
+            //start paging
+            logger.info(`Aggregating messages... total so far ${allMessages.length} entries but more left, pulling logs before ${new Date(jsonRes.endTime)}`)
+            result= await adminLog.query([102023], [parameters.service + ".MapServer"], pageSize, jsonRes.endTime, null, "DEBUG")
+            jsonRes = await result.json()
+  
+            allMessages = allMessages.concat(jsonRes.logMessages.filter(m => m.message.indexOf("EndCursor;") > -1))
+        }
+      console.log ("Filtering messages...")
+      allMessages = allMessages
+            .map( m=> {
+                m.dataAccessElapsed = parseFloat(m.message.split(";")[1].split(" ")[1])
+                m.ExecuteQueryElapsed = parseFloat(m.message.split(";")[2].split(" ")[1])
+                m.totalTimeElapsed = m.dataAccessElapsed +  m.ExecuteQueryElapsed 
+                m.elapsed = parseFloat(m.elapsed); return m;
+
+            })
+            .sort( (m1,m2) => m2.totalTimeElapsed - m1.totalTimeElapsed)
+            .slice(0, 10) ;//first 10
+    
+     
+        console.log("-----Top 10 SQL----")
+        let i =0;
+        allMessages= allMessages.forEach(m => 
+            {
+             
+                const x = m.message.split(";")
+                console.log(`id: ${i++}`)
+                console.log(`\tAt: ${new Date(m.time)} (${m.time})`)
+                console.log(`\tUser: ${m.user}`)
+                console.log(`\tElapsed: ${m.elapsed*1000} ms`)
+                console.log(`\ttotalTimeElapsed: ${m.totalTimeElapsed} ms`)
+                console.log(`\tQuery:`)
+                x.forEach(a => console.log(`\t${a}`))
+                console.log(`\n`)
+ 
+        })
+ 
+    },
+        
+
+    
+    "^cursorlogs --age": async input => {
+        const topLogCount = 1000;
+        const pageSize = 10000
+
+        const inputParam = input.match(/--age .*/gm)
+        let mins = 30;  //query logs for the last 30 minutes
+        if (inputParam != null && inputParam.length > 0)
+            mins = inputParam[0].replace("--age ", "")
+ 
+        console.log(`Querying cursor sql logs for ${parameters.service} for the last ${mins} minutes ...`)
+        const startTime = Date.now() - mins*60*1000
+        const endTime = Date.now();
+        let result= await adminLog.query([102023], [parameters.service+ ".MapServer"], topLogCount, startTime ,endTime , "DEBUG")
+        let jsonRes = await result.json()
+        let allMessages = [].concat(jsonRes.logMessages) 
+        allMessages = allMessages.filter(m => m.message.indexOf("EndCursor;") > -1)
+        while (jsonRes.hasMore)
+        {  
+            //start paging
+            logger.info(`Aggregating messages... total so far ${allMessages.length} entries but more left, pulling logs before ${new Date(jsonRes.endTime)}`)
+            result= await adminLog.query([102023], [parameters.service + ".MapServer"], pageSize, jsonRes.endTime, null, "DEBUG")
+            jsonRes = await result.json()
+  
+            allMessages = allMessages.concat(jsonRes.logMessages.filter(m => m.message.indexOf("EndCursor;") > -1))
+        }  
+
+
+     //   
+     allMessages= allMessages.map(m => {
+
+            const r= m.message.split (";")
+            delete r[0];
+            delete r[1];
+            delete r[3];
+            return r;
+            
+            const newMessage = Object.assign({}, m);
+        
+            delete newMessage.source;
+            delete newMessage.machine;
+            delete newMessage.type;
+            delete newMessage.requestID;
+            delete newMessage.methodName;
+            delete newMessage.process;
+            delete newMessage.thread;
+            delete newMessage.time;
+            delete newMessage.code;
+
+            return newMessage
+ 
+        })
+        console.table(allMessages)
+    },
 
 
     "^arlogs --byrule": async input => {
