@@ -1,3 +1,2 @@
-trace --subnetwork NW53-22313
-topsql --age 2
+export subnetworks --all --folder c:\temp
 exit

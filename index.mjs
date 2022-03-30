@@ -442,14 +442,14 @@ const inputs = {
             console.log(`Result from submitting job ${JSON.stringify(subnetworkResult)}`)
         }
     },
-    "^export subnetworks --all$" : async input => {
+   "^export subnetworks --all --folder .*$|^export subnetworks --all$" : async input => {
 
         
         //create folder
-        const file = input.match(/-f .*/gm)
+        const file = input.match(/--folder .*/gm)
         let inputDir = "Exported"
         if (file != null && file.length > 0)
-             inputDir = file[0].replace("-f ", "")
+             inputDir = file[0].replace("--folder ", "")
         //create directory if doesn't exists
         if (!fs.existsSync(inputDir))  fs.mkdirSync(inputDir)
 
@@ -471,7 +471,7 @@ const inputs = {
 
             const toDate = new Date();
             const timeEnable = toDate.getTime() - fromDate.getTime();
-            subnetworkResult.duration =  numberWithCommas(Math.round(timeEnable/1000)) + " s"
+            subnetworkResult.duration =  numberWithCommas(timeEnable) + " ms"
             
 
             //fetch the json and write it to disk 

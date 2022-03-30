@@ -997,6 +997,37 @@ export class UtilityNetwork {
              let ar = thisObj.featureServiceUrl.split("/");
              ar[ar.length-1]="UtilityNetworkServer";
              let exportsubnetworkUrl = ar.join("/") + "/exportSubnetwork"
+             const resultTypes = [
+                {
+                  "type": "features",
+                  "includeGeometry": true,
+                  "includePropagatedValues": false,
+                  "includeDomainDescriptions": true,
+                  "networkAttributeNames": [
+                    "Is subnetwork controller"
+                  ],
+                  "diagramTemplateName": "",
+                  "resultTypeFields": []
+                },
+                {
+                  "type": "connectivity",
+                  "includeGeometry": true,
+                  "includePropagatedValues": false,
+                  "includeDomainDescriptions": true,
+                  "networkAttributeNames": [],
+                  "diagramTemplateName": "",
+                  "resultTypeFields": []
+                },
+                {
+                  "type": "associations",
+                  "includeGeometry": false,
+                  "includePropagatedValues": false,
+                  "includeDomainDescriptions": true,
+                  "networkAttributeNames": [],
+                  "diagramTemplateName": "",
+                  "resultTypeFields": []
+                }
+              ]
              //traceConfiguration: JSON.stringify(subnetworkDef),   
                let exportsubnetworkJson = {
                   f: "json",
@@ -1007,9 +1038,10 @@ export class UtilityNetwork {
                   exportAcknowledgement: true,
                   allSubnetworksInTier: false,
                   continueOnFailure: false,
-                  traceConfiguration: subnetworkDef,               
+                  traceConfiguration: subnetworkDef,   
                   async: async,
                   gdbVersion:this.gdbVersion,
+                  resultTypes: JSON.stringify(resultTypes)
                 }
               let un = this;
             
