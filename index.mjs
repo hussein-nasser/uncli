@@ -7,7 +7,7 @@ import { AdminLog } from "./adminlog.mjs"
 import { logger } from "./logger.mjs"
 import  fetch  from "node-fetch"
 //update version
-let version = "0.0.65";
+let version = "0.0.66";
 const GENERATE_TOKEN_TIME_MIN = 30;
 
 let rl = null;
