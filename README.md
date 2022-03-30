@@ -18,6 +18,7 @@ npm install -g un-cli
 ```
 
 ```bash
+
 uncli> help
 ┌───────────────────────────────────────┬──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │                (index)                │                                                          Values                                                          │
@@ -45,14 +46,16 @@ uncli> help
 │                 count                 │                                    'Lists the number of rows in all feature layers.'                                     │
 │            count --system             │                                       'Lists the number of rows in system layers.'                                       │
 │           connect --service           │                                            'Connects to the another service'                                             │
-│        tracelogs --m <minutes>        │                    'Lists utility network trace summary logs for the last x minutes (requires admin)'                    │
-│                arlogs                 │                                 'Lists attribute rules execution logs (requires admin)'                                  │
+│       tracelogs --age <minutes>       │                    'Lists utility network trace summary logs for the last x minutes (requires admin)'                    │
+│     validatelogs --age <minutes>      │                  'Lists utility network validate summary logs for the last x minutes (requires admin)'                   │
+│ updatesubnetworkslog --age <minutes>  │             'Lists utility network update subnetworks summary logs for the last x minutes (requires admin)'              │
+│        arlogs --age <minutes>         │                     'Lists attribute rules execution logs for the last x minutes  (requires admin)'                      │
 │ arlogs --byrule [--minguid --maxguid] │ 'Lists attribute rules execution summary by rule (requires admin), --maxguid and --minguid show the GUID of the feature' │
+│        topsql --age <minutes>         │                           'Lists all queries executed in the last x minutes  (requires admin)'                           │
 │                whoami                 │                                              'Lists the current login info'                                              │
 │                 clear                 │                                                   'Clears this screen'                                                   │
 │                 quit                  │                                                   'Exit this program'                                                    │
-└───────────────────────────────────────┴──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-
+└───────────────────────────────────────┴──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 
