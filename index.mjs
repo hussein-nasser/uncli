@@ -7,7 +7,7 @@ import { AdminLog } from "./adminlog.mjs"
 import { logger } from "./logger.mjs"
 import  fetch  from "node-fetch"
 //update version
-let version = "0.0.66";
+let version = "0.0.67";
 const GENERATE_TOKEN_TIME_MIN = 30;
 
 let rl = null;
@@ -172,8 +172,8 @@ const inputs = {
             "update subnetworks --all": "Update all dirty subnetworks synchronously",
             "update subnetworks --deleted": "Update all deleted dirty subnetworks synchronously",
             "update subnetworks --all --async": "Update all dirty subnetworks asynchronously",          
-            "export subnetworks --all": "Export all subnetworks with ACK ",
-            "export subnetworks --new": "Export all subnetworks with ACK that haven't been exported ",
+            "export subnetworks --all [--folder]": "Export all subnetworks with ACK --folder where exported files are saved",
+            "export subnetworks --new [--folder]": "Export all subnetworks with ACK that haven't been exported --folder where exported files are saved",
             "export subnetworks --deleted": "Export all subnetworks with ACK that are deleted ",
             "count": "Lists the number of rows in all feature layers.",
             "count --system": "Lists the number of rows in system layers.",
@@ -247,7 +247,7 @@ const inputs = {
       //  console.log('\x1b[36m%s\x1b[0m', 'I am cyan');  //cyan
         const topoMoments = networkMoments.networkMoments.map(m => {
             const t = m.time === 0 ? "N/A": new Date(m.time*1000)
-            const d = m.duration === 0 ? "N/A" : numberWithCommas(Math.round(m.duration/1000)) + " s"
+            const d = m.duration === 0 ? "N/A" : numberWithCommas(Math.round(m.duration)) + " ms"
             m.time = t.toString()
             m.duration = d;
             return m;
@@ -265,7 +265,7 @@ const inputs = {
         const result = await un.enableTopology()
         const toDate = new Date();
         const timeEnable = toDate.getTime() - fromDate.getTime();
-        result.duration =  numberWithCommas(Math.round(timeEnable/1000)) + " s"
+        result.duration =  numberWithCommas(Math.round(timeEnable)) + " ms"
         console.table(result) 
     },
     "^topology --disable$": async () => {
@@ -274,7 +274,7 @@ const inputs = {
         const result = await un.disableTopology()
         const toDate = new Date();
         const timeEnable = toDate.getTime() - fromDate.getTime();
-        result.duration =  numberWithCommas(Math.round(timeEnable/1000)) + " s"
+        result.duration =  numberWithCommas(Math.round(timeEnable)) + " ms"
         console.table(result) 
     },
     "^evaluate$": async () => {
@@ -296,7 +296,7 @@ const inputs = {
         const result = {}
         const toDate = new Date();
         const timeEnable = toDate.getTime() - fromDate.getTime();
-        result.duration =  numberWithCommas(Math.round(timeEnable/1000)) + " s"
+        result.duration =  numberWithCommas(Math.round(timeEnable)) + " ms"
         console.log(result)
     },
 
@@ -341,7 +341,7 @@ const inputs = {
             const result = await un.validateNetworkTopology("sde.DEFAULT", e)
             const toDate = new Date();
             const timeEnable = toDate.getTime() - fromDate.getTime();
-            const duration =  numberWithCommas(Math.round(timeEnable/1000)) + " s"
+            const duration =  numberWithCommas(Math.round(timeEnable)) + " ms"
             console.clear()
             console.log("Validating extent " + e.xmin)
             console.table({duration}) 
@@ -357,7 +357,7 @@ const inputs = {
         const result = await un.validateNetworkTopology()
         const toDate = new Date();
         const timeEnable = toDate.getTime() - fromDate.getTime();
-        result.duration =  numberWithCommas(Math.round(timeEnable/1000)) + " s"
+        result.duration =  numberWithCommas(Math.round(timeEnable)) + " ms"
         console.table(result) 
     },
     "^subnetworks --dirty$": async () => {        
@@ -402,7 +402,7 @@ const inputs = {
 
             const toDate = new Date();
             const timeEnable = toDate.getTime() - fromDate.getTime();
-            subnetworkResult.duration =  numberWithCommas(Math.round(timeEnable/1000)) + " s"
+            subnetworkResult.duration =  numberWithCommas(Math.round(timeEnable)) + " ms"
             
 
             console.log(`Result ${JSON.stringify(subnetworkResult)}`)
@@ -426,7 +426,7 @@ const inputs = {
             
             const toDate = new Date();
             const timeEnable = toDate.getTime() - fromDate.getTime();
-            subnetworkResult.duration =  numberWithCommas(Math.round(timeEnable/1000)) + " s"
+            subnetworkResult.duration =  numberWithCommas(Math.round(timeEnable)) + " ms"
 
             console.log(`Result ${JSON.stringify(subnetworkResult)}`)
         }
@@ -555,7 +555,7 @@ const inputs = {
         const toDate = new Date();
         const timeRun = toDate.getTime() - fromDate.getTime();
         const newResult = {}
-        newResult.duration =  numberWithCommas(Math.round(timeRun/1000)) + " s"
+        newResult.duration =  numberWithCommas(Math.round(timeRun)) + " ms"
         newResult.elementsCount = result.traceResults.elements.length;
         console.table(newResult) 
 
@@ -889,6 +889,7 @@ const inputs = {
             allMessages = allMessages.concat(jsonRes.logMessages.filter(m => m.message.indexOf("EndCursor;") > -1))
         }
       console.log ("Filtering messages...")
+      
       allMessages = allMessages
             .map( m=> {
                 m.dataAccessElapsed = parseFloat(m.message.split(";")[1].split(" ")[1])

@@ -1,2 +1,3 @@
-export subnetworks --all --folder c:\temp
+trace --subnetwork D23630
+topsql --age 10
 exit
