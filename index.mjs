@@ -7,7 +7,7 @@ import { AdminLog } from "./adminlog.mjs"
 import { logger } from "./logger.mjs"
 import  fetch  from "node-fetch"
 //update version
-let version = "0.0.68";
+let version = "0.0.69";
 const GENERATE_TOKEN_TIME_MIN = 30;
 
 let rl = null;
@@ -394,8 +394,7 @@ const inputs = {
             console.log("Updating Subnetwork " + v(f.attributes,"subnetworkName"));
             
             const fromDate = new Date();
-             
-            
+              
             const subnetworkResult = await un.updateSubnetworks(v(f.attributes,"domainNetworkName"), v(f.attributes,"tierName"), v(f.attributes,"subnetworkName"),false);
             
             //code
@@ -410,26 +409,30 @@ const inputs = {
     },
 
     "^update subnetworks --all$" : async () => {
-        console.log("Querying all subnetworks that are dirty.");
-        let subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty=1", "domainnetworkname,tiername,subnetworkname");
-        console.log(`Discovered ${subnetworks.features.length} dirty subnetworks.`);
+ 
+        do  {
+            console.log("Querying all subnetworks that are dirty.");
+            let subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty=1", "domainnetworkname,tiername,subnetworkname");
+            console.log(`Discovered ${subnetworks.features.length} dirty subnetworks.`);
 
+            for (let i = 0;  i < subnetworks.features.length; i++) {
+                const f = subnetworks.features[i]
+                console.log("Updating Subnetwork " + v(f.attributes,"subnetworkName"));
+                
+                const fromDate = new Date();
+                 
+                const subnetworkResult = await un.updateSubnetworks(v(f.attributes,"domainNetworkName"), v(f.attributes,"tierName"), v(f.attributes,"subnetworkName"),false);
+                
+                const toDate = new Date();
+                const timeEnable = toDate.getTime() - fromDate.getTime();
+                subnetworkResult.duration =  numberWithCommas(Math.round(timeEnable)) + " ms"
+    
+                console.log(`Result ${JSON.stringify(subnetworkResult)}`)
+            }
 
-        for (let i = 0;  i < subnetworks.features.length; i++) {
-            const f = subnetworks.features[i]
-            console.log("Updating Subnetwork " + v(f.attributes,"subnetworkName"));
-            
-            const fromDate = new Date();
-            
-
-            const subnetworkResult = await un.updateSubnetworks(v(f.attributes,"domainNetworkName"), v(f.attributes,"tierName"), v(f.attributes,"subnetworkName"),false);
-            
-            const toDate = new Date();
-            const timeEnable = toDate.getTime() - fromDate.getTime();
-            subnetworkResult.duration =  numberWithCommas(Math.round(timeEnable)) + " ms"
-
-            console.log(`Result ${JSON.stringify(subnetworkResult)}`)
-        }
+        } 
+        while (subnetworks.features.length > 0)
+        
     },
     "^update subnetworks --all --async$" : async () => {
         console.log("Querying all subnetworks that are dirty.");
@@ -443,8 +446,7 @@ const inputs = {
         }
     },
    "^export subnetworks --all --folder .*$|^export subnetworks --all$" : async input => {
-
-        
+ 
         //create folder
         const file = input.match(/--folder .*/gm)
         let inputDir = "Exported"
@@ -452,45 +454,49 @@ const inputs = {
              inputDir = file[0].replace("--folder ", "")
         //create directory if doesn't exists
         if (!fs.existsSync(inputDir))  fs.mkdirSync(inputDir)
+ 
+        do {
 
-
-        console.log("Querying all subnetworks that are clean.");
-        let subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty=0","domainnetworkname,tiername,subnetworkname");
-        console.log(`Discovered ${subnetworks.features.length} subnetworks that can be exported.`);
-        for (let i = 0;  i < subnetworks.features.length; i++) {
-            const f = subnetworks.features[i]
-            const subnetworkName = v(f.attributes,"subnetworkName")
-            console.log("Exporting subnetworks " + v(f.attributes,"subnetworkName"));
-            
-            const fromDate = new Date();
-            
-            const subnetworkResult = await un.exportSubnetworks(v(f.attributes,"domainNetworkName"), v(f.attributes,"tierName"), v(f.attributes,"subnetworkName"),false);
-             
-            
-            //code
-
-            const toDate = new Date();
-            const timeEnable = toDate.getTime() - fromDate.getTime();
-            subnetworkResult.duration =  numberWithCommas(timeEnable) + " ms"
-            //if undefined exit
-            if (!subnetworkResult.url)
-            {
-                console.log("Export subnetwork failed " + JSON.stringify(subnetworkResult))
-                continue;
+            console.log("Querying all subnetworks that are clean.");
+            let subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty=0","domainnetworkname,tiername,subnetworkname");
+            console.log(`Discovered ${subnetworks.features.length} subnetworks that can be exported.`);
+            for (let i = 0;  i < subnetworks.features.length; i++) {
+                const f = subnetworks.features[i]
+                const subnetworkName = v(f.attributes,"subnetworkName")
+                console.log("Exporting subnetworks " + v(f.attributes,"subnetworkName"));
+                
+                const fromDate = new Date();
+                
+                const subnetworkResult = await un.exportSubnetworks(v(f.attributes,"domainNetworkName"), v(f.attributes,"tierName"), v(f.attributes,"subnetworkName"),false);
+                 
+                
+                //code
+    
+                const toDate = new Date();
+                const timeEnable = toDate.getTime() - fromDate.getTime();
+                subnetworkResult.duration =  numberWithCommas(timeEnable) + " ms"
+                //if undefined exit
+                if (!subnetworkResult.url)
+                {
+                    console.log("Export subnetwork failed " + JSON.stringify(subnetworkResult))
+                    continue;
+                }
+    
+                //fetch the json and write it to disk 
+                const subContent = await fetch(subnetworkResult.url);
+                //check if the response is 200 only then attempt to parse to json
+                //although the response is json, its easier to treat it as text (handle error cases) since we will only write it to disk.
+                // if we want to do something with the response then make it json
+                const jsonExport = await subContent.text();
+                fs.writeFileSync(`${inputDir}/${subnetworkName}.json`, jsonExport)            
+               
+    
+                console.log(`Result ${JSON.stringify(subnetworkResult)} written to file ${process.cwd()}/${inputDir}/${subnetworkName}.json`)
+    
             }
-
-            //fetch the json and write it to disk 
-            const subContent = await fetch(subnetworkResult.url);
-            //check if the response is 200 only then attempt to parse to json
-            //although the response is json, its easier to treat it as text (handle error cases) since we will only write it to disk.
-            // if we want to do something with the response then make it json
-            const jsonExport = await subContent.text();
-            fs.writeFileSync(`${inputDir}/${subnetworkName}.json`, jsonExport)            
-           
-
-            console.log(`Result ${JSON.stringify(subnetworkResult)} written to file ${process.cwd()}/${inputDir}/${subnetworkName}.json`)
-
         }
+        while (subnetworks.features.length > 0)
+       
     },
    
 
