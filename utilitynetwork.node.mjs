@@ -275,7 +275,7 @@ export class UtilityNetwork {
              
         }
         
-        queryDistinct(layerId, field, where) {
+        queryDistinct(layerId, field, where, orderby) {
            
             let queryJson = {
                 f: "json",
@@ -283,7 +283,9 @@ export class UtilityNetwork {
                 outFields: field,
                 where: where,
                 gdbVersion:this.gdbVersion,
-                returnDistinctValues: true
+                returnDistinctValues: true,
+                orderByFields: orderby,
+
             }
  
             queryJson.layerId = layerId

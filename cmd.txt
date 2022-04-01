@@ -1,3 +1,2 @@
-trace --subnetwork D23630
-topsql --age 10
+update subnetworks --all
 exit

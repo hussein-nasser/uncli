@@ -7,7 +7,7 @@ import { AdminLog } from "./adminlog.mjs"
 import { logger } from "./logger.mjs"
 import  fetch  from "node-fetch"
 //update version
-let version = "0.0.67";
+let version = "0.0.68";
 const GENERATE_TOKEN_TIME_MIN = 30;
 
 let rl = null;
@@ -387,7 +387,7 @@ const inputs = {
 
     "^update subnetworks --deleted$" : async () => {
         console.log("Querying all subnetworks that are dirty and deleted.");
-        let subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty=1 and isdeleted=1");
+        let subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty=1 and isdeleted=1","domainnetworkname,tiername,subnetworkname");
         console.log(`Discovered ${subnetworks.features.length} dirty deleted subnetworks.`);
         for (let i = 0;  i < subnetworks.features.length; i++) {
             const f = subnetworks.features[i]
@@ -411,7 +411,7 @@ const inputs = {
 
     "^update subnetworks --all$" : async () => {
         console.log("Querying all subnetworks that are dirty.");
-        let subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty=1");
+        let subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty=1", "domainnetworkname,tiername,subnetworkname");
         console.log(`Discovered ${subnetworks.features.length} dirty subnetworks.`);
 
 
@@ -433,7 +433,7 @@ const inputs = {
     },
     "^update subnetworks --all --async$" : async () => {
         console.log("Querying all subnetworks that are dirty.");
-        let subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty=1");
+        let subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty=1", "domainnetworkname,tiername,subnetworkname");
         console.log(`Discovered ${subnetworks.features.length} dirty subnetworks.`);
         for (let i = 0;  i < subnetworks.features.length; i++) {
             const f = subnetworks.features[i]
@@ -455,7 +455,7 @@ const inputs = {
 
 
         console.log("Querying all subnetworks that are clean.");
-        let subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty=0");
+        let subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty=0","domainnetworkname,tiername,subnetworkname");
         console.log(`Discovered ${subnetworks.features.length} subnetworks that can be exported.`);
         for (let i = 0;  i < subnetworks.features.length; i++) {
             const f = subnetworks.features[i]
@@ -472,7 +472,12 @@ const inputs = {
             const toDate = new Date();
             const timeEnable = toDate.getTime() - fromDate.getTime();
             subnetworkResult.duration =  numberWithCommas(timeEnable) + " ms"
-            
+            //if undefined exit
+            if (!subnetworkResult.url)
+            {
+                console.log("Export subnetwork failed " + JSON.stringify(subnetworkResult))
+                continue;
+            }
 
             //fetch the json and write it to disk 
             const subContent = await fetch(subnetworkResult.url);
@@ -501,7 +506,7 @@ const inputs = {
 
 
         console.log("Querying all subnetworks that are clean and not exported.");
-        let subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty = 0 and (LASTACKEXPORTSUBNETWORK is null or LASTACKEXPORTSUBNETWORK < LASTUPDATESUBNETWORK)");
+        let subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty = 0 and (LASTACKEXPORTSUBNETWORK is null or LASTACKEXPORTSUBNETWORK < LASTUPDATESUBNETWORK)","domainnetworkname,tiername,subnetworkname");
         console.log(`Discovered ${subnetworks.features.length} subnetworks that can be exported.`);
         for (let i = 0;  i < subnetworks.features.length; i++) {
             const f = subnetworks.features[i]
@@ -579,6 +584,14 @@ const inputs = {
             const subnetworkName = v(f.attributes,"subnetworkName")
             console.log(`Exporting subnetwork ${subnetworkName}` );
             const subnetworkResult = await un.exportSubnetworks(v(f.attributes,"domainNetworkName"), v(f.attributes,"tierName"), v(f.attributes,"subnetworkName"),false);
+            
+            //if undefined exit
+            if (!subnetworkResult.url)
+            {
+                console.log("Export subnetwork failed " + JSON.stringify(subnetworkResult))
+                continue;
+            }
+
             //fetch the json and write it to disk 
             const subContent = await fetch(subnetworkResult.url);
             const jsonExport = await subContent.text();
@@ -893,12 +906,12 @@ const inputs = {
       allMessages = allMessages
             .map( m=> {
                 m.dataAccessElapsed = parseFloat(m.message.split(";")[1].split(" ")[1])
-                m.ExecuteQueryElapsed = parseFloat(m.message.split(";")[2].split(" ")[1])
-                m.totalTimeElapsed = m.dataAccessElapsed +  m.ExecuteQueryElapsed 
+                m.executeQueryElapsed = parseFloat(m.message.split(";")[2].split(" ")[1])
+                m.totalExecutionElapsed = m.dataAccessElapsed +  m.executeQueryElapsed 
                 m.elapsed = parseFloat(m.elapsed); return m;
 
             })
-            .sort( (m1,m2) => m2.totalTimeElapsed - m1.totalTimeElapsed)
+            .sort( (m1,m2) => m2.totalExecutionElapsed - m1.totalExecutionElapsed)
             .slice(0, 10) ;//first 10
     
      
@@ -908,11 +921,12 @@ const inputs = {
             {
              
                 const x = m.message.split(";")
+                x.shift()
                 console.log(`id: ${i++}`)
                 console.log(`\tAt: ${new Date(m.time)} (${m.time})`)
                 console.log(`\tUser: ${m.user}`)
-                console.log(`\tElapsed: ${m.elapsed*1000} ms`)
-                console.log(`\ttotalTimeElapsed: ${m.totalTimeElapsed} ms`)
+                console.log(`\tTotal Time: ${numberWithCommas(Math.round(m.elapsed*1000))} ms (Total time the cursor was opened)`)
+                console.log(`\tQuery Time: ${numberWithCommas(m.totalExecutionElapsed)} ms (includes search + data access nextRow)`)
                 console.log(`\tQuery:`)
                 x.forEach(a => console.log(`\t${a}`))
                 console.log(`\n`)
