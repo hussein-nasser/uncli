@@ -1,4 +1,5 @@
-import fetch from "node-fetch";
+ 
+
 
 export function makeRequest (opts) {
    
@@ -24,7 +25,18 @@ export function makeRequest (opts) {
            Object.keys(opts.headers).forEach(  key => headers[key] = opts.headers[key] )
 
        //console.log(opts)
-       const result = await fetch(opts.url, {
+
+        let f;
+        try {
+            const nodeFetch = await import ("node-fetch");
+            f = nodeFetch.default;
+        }
+        catch(ex) {
+            f = fetch;
+        }
+ 
+
+       const result = await f(opts.url, {
            "method" : opts.method,
             "headers":  headers,
             "body": params

@@ -2,8 +2,6 @@
 //Author : Hussein Nasser
 //Date   : Oct-13-2021
 //Twitter: @hnasr
-import fetch from "node-fetch";
-import { logger } from "./logger.mjs"
 
 export class AdminLog {
 
@@ -13,12 +11,22 @@ export class AdminLog {
         this.token = token;         
     }
 
-    query (codes, serviceName ="*", pageSize = 100000, startTime = null, endTime = null, logLevel = "DEBUG") 
+    async getFetch() {
+        try {
+            const nodeFetch = await import ("node-fetch");
+            return nodeFetch.default;
+        }
+        catch(ex) {
+            return fetch;
+        }
+    }
+    async query (codes, serviceName ="*", pageSize = 100000, startTime = null, endTime = null, logLevel = "DEBUG") 
     {   
         const url =  this.adminServerUrl  + "/logs/query?f=pjson"
         const level =  logLevel
         const filterType="json"
         const token = this.token
+ 
         const filter = {
             "codes": codes,
             "services": serviceName
@@ -32,6 +40,7 @@ export class AdminLog {
             queryLogUrl += `&endTime=${endTime}`
 
         //logger.info(queryLogUrl);
+        const fetch = await this.getFetch()
         return fetch(queryLogUrl);
     }
 

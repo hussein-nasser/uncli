@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UN Logs</title>
+</head>
+<body>
+
+    <table>
+        <tr><td>Service</td>
+            <td colspan =3 ><select id ='cmbService'>
+                <option>(All Services)</option>
+            </select>
+            </td>
+        </tr>
+         
+    <tr> 
+        <td >Age</td>
+        <td colspan =3><input type ='text' id = 'txtAge' value = '30' style="width:30px"> minutes</td>
+    </tr>
+    <tr colspan =4>
+        <td><button id = 'btnTraceLogs'>Trace Logs</button></td>
+        <td><button id = 'btnValidateLogs'>Validate Logs</button></td>
+        <td><button id = 'btnUpdateSubnetworkLogs'>Update Subnetwork Logs</button></td>
+        <td><button id = 'btnAR'>Attribute Rules Logs</button></td>
+        <td><button id = 'btnSQLLogs'>SQL Logs</button></td>
+        
+    </tr>
+
+    </table>
+
+    <table id = 'tblResult' border =1 cellpadding = 4 cellspacing = 4 style="text-align:center">
+
+    </table>
+    <script type = 'module'>
+        import { Portal } from "./portal.mjs"
+        import { UtilityNetwork } from "./utilitynetwork.node.mjs"
+        import { AdminLog } from "./adminlog.mjs"
+        import  logger  from "./logger.mjs"
+
+    const parameters = {
+        "user": "unadmin",
+        "password": "unadmin.109",
+        "portal": "https://utilitynetwork.esri.com/portal",
+        "service": "RedTrolley_SQLServer",
+        "referer": "https://utilitynetwork.esri.com/log"
+    }
+
+    let portal;
+    let adminLog = null;
+    let cmbService 
+   let token;
+    async function init() {
+        
+        cmbService = document.getElementById("cmbService")
+    
+        token = await getToken(parameters);
+        const services = await portal.services()
+        const featureServices = services.services.filter(s => s.type == "FeatureServer")
+        featureServices.forEach(s=> {
+            const o = document.createElement("option");
+            o.text = s.name;
+            cmbService.appendChild(o);
+        })
+    }
+
+
+    async function getToken(parameters) {
+        portal = new Portal(parameters.portal, parameters.user, parameters.password,300, parameters.server, parameters.referer)
+        console.log("About to connect..")
+        const token = await portal.connect()
+        console.log(`Token generanted successfully.`)
+        return token;
+    }
+
+
+    async function loadTraceLogs () {
+  
+        //build table
+        const tblResult = document.getElementById("tblResult");
+        //clear
+        while(tblResult.firstChild) tblResult.removeChild(tblResult.firstChild)
+        tblResult.appendChild(document.createTextNode("Loading...."));
+
+
+        parameters.service = cmbService.options[cmbService.selectedIndex].text
+  
+        //create a new admin object (user might not be admin we won't use it until the user call log )
+        adminLog = new AdminLog(token, portal.serverUrl)
+
+        logger.info("Connected.")
+
+
+        const topLogCount = 1000;
+        const pageSize = 10000
+ 
+        let mins = document.getElementById("txtAge").value  //query logs for the last 30 minutes
+ 
+        console.log(`Querying trace logs for ${parameters.service} for the last ${mins} minutes ...`)
+        const startTime = Date.now() - mins*60*1000
+        const endTime = Date.now();
+        let services = [parameters.service+ ".MapServer"] 
+        if (parameters.service == "(All Services)")
+            services = "*"
+        let result= await adminLog.query([102002], services, topLogCount, startTime ,endTime , "VERBOSE")
+        let jsonRes = await result.json()
+        let allMessages = [].concat(jsonRes.logMessages) 
+        allMessages = allMessages.filter(m => m.message.indexOf("------ Trace Parameters ----") > -1)
+        while (jsonRes.hasMore)
+        {  
+            //start paging
+            logger.info(`Aggregating messages... total so far ${allMessages.length} entries but more left, pulling logs before ${new Date(jsonRes.endTime)}`)
+            result= await adminLog.query([102002], services, pageSize, jsonRes.endTime, null, "VERBOSE")
+            jsonRes = await result.json()
+  
+            allMessages = allMessages.concat(jsonRes.logMessages.filter(m => m.message.indexOf("------ Trace Parameters ----") > -1))
+        }   
+
+         await populateMessages(allMessages)
+ 
+         
+    }
+ 
+
+    
+    async function loadValidateLogs () {
+  //build table
+const tblResult = document.getElementById("tblResult");
+//clear
+while(tblResult.firstChild) tblResult.removeChild(tblResult.firstChild)
+tblResult.appendChild(document.createTextNode("Loading...."));
+
+  parameters.service = cmbService.options[cmbService.selectedIndex].text
+
+ 
+  //create a new admin object (user might not be admin we won't use it until the user call log )
+  adminLog = new AdminLog(token, portal.serverUrl)
+ 
+  logger.info("Connected.")
+
+
+  const topLogCount = 1000;
+  const pageSize = 10000
+
+  let mins = document.getElementById("txtAge").value  //query logs for the last 30 minutes
+
+  console.log(`Querying validate logs for ${parameters.service} for the last ${mins} minutes ...`)
+        const startTime = Date.now() - mins*60*1000
+        const endTime = Date.now();
+        let services = [parameters.service+ ".MapServer"] 
+        if (parameters.service == "(All Services)")
+            services = "*"
+        let result= await adminLog.query([102003], services, topLogCount, startTime ,endTime , "VERBOSE")
+        let jsonRes = await result.json()
+        let allMessages = [].concat(jsonRes.logMessages) 
+        allMessages = allMessages.filter(m => m.message.indexOf("-------- Environment ---") > -1 && m.message.indexOf("The network is built.") > -1 && m.methodName == 'BuildEngineLog')
+        while (jsonRes.hasMore)
+        {  
+            //start paging
+            logger.info(`Aggregating messages... total so far ${allMessages.length} entries but more left, pulling logs before ${new Date(jsonRes.endTime)}`)
+            result= await adminLog.query([102003], services, pageSize, jsonRes.endTime, null, "VERBOSE")
+            jsonRes = await result.json()
+  
+            allMessages = allMessages.concat(jsonRes.logMessages.filter(m => m.message.indexOf("-------- Environment ---") > -1 && m.message.indexOf("------ Trace Parameters ----") == -1))
+        }  
+
+    
+
+         
+        //validate logs missing elapsed populate it
+        allMessages = allMessages.map( m => {
+            try{
+                
+                //The network is built. 0.093 seconds (4.982 total) - 29 MB memory
+    
+            let re = /The network is built. [-+]?([0-9]*\.[0-9]+|[0-9]+) seconds \([-+]?([0-9]*\.[0-9]+|[0-9]+) total\)/;
+            let res = re.exec(m.message)
+            if (res && res.length  > 1)
+                m.elapsed = res[2]
+            
+                return m;
+            }
+            catch(ex){
+                return m;
+            }
+        })
+
+
+   await populateMessages(allMessages)
+
+   
+}
+
+
+async function loadUpdateSubnetworkLogs () {
+  //build table
+const tblResult = document.getElementById("tblResult");
+//clear
+while(tblResult.firstChild) tblResult.removeChild(tblResult.firstChild)
+tblResult.appendChild(document.createTextNode("Loading...."));
+
+  parameters.service = cmbService.options[cmbService.selectedIndex].text 
+  //create a new admin object (user might not be admin we won't use it until the user call log )
+  adminLog = new AdminLog(token, portal.serverUrl)
+ 
+  logger.info("Connected.")
+
+
+  const topLogCount = 1000;
+  const pageSize = 10000
+
+  let mins = document.getElementById("txtAge").value  //query logs for the last 30 minutes
+
+  
+  console.log(`Querying subnetwork logs for ${parameters.service} for the last ${mins} minutes ...`)
+        const startTime = Date.now() - mins*60*1000
+        const endTime = Date.now();
+        let services = [parameters.service+ ".MapServer"] 
+        if (parameters.service == "(All Services)")
+            services = "*"
+        let result= await adminLog.query([102003], services, topLogCount, startTime ,endTime , "VERBOSE")
+        let jsonRes = await result.json()
+        let allMessages = [].concat(jsonRes.logMessages) 
+        allMessages = allMessages.filter(m => m.message.indexOf("---- Subnetwork Parameters ----") > -1)
+        while (jsonRes.hasMore)
+        {  
+            //start paging
+            logger.info(`Aggregating messages... total so far ${allMessages.length} entries but more left, pulling logs before ${new Date(jsonRes.endTime)}`)
+            result= await adminLog.query([102003], services, pageSize, jsonRes.endTime, null, "VERBOSE")
+            jsonRes = await result.json()
+  
+            allMessages = allMessages.concat(jsonRes.logMessages.filter(m => m.message.indexOf("---- Subnetwork Parameters ----") > -1))
+        }  
+         
+        //update subnetwork missing elapsed populate it
+        allMessages = allMessages.map( m => {
+            try{
+ 
+            let re = /Total \([-+]?([0-9]*\.[0-9]+|[0-9]+) seconds\)/;
+            let res = re.exec(m.message)
+            if (res && res.length  > 1)
+                m.elapsed = res[1]
+
+            re = /Total update subnetwork time \([-+]?([0-9]*\.[0-9]+|[0-9]+) seconds\)/;
+            res = re.exec(m.message)
+            if (res && res.length  > 1)
+                m.elapsed = res[1]
+            
+            return m;
+            }
+            catch(ex){
+                return m;
+            }
+        })
+        await populateMessages(allMessages)
+
+   
+}
+
+
+
+async function loadAttributeRules () {
+    
+        //build table
+        const tblResult = document.getElementById("tblResult");
+        tblResult.appendChild(document.createTextNode("Loading...."));
+
+        let mins = document.getElementById("txtAge").value  //query logs for the last 30 minutes
+
+        parameters.service = cmbService.options[cmbService.selectedIndex].text 
+        //create a new admin object (user might not be admin we won't use it until the user call log )
+        adminLog = new AdminLog(token, portal.serverUrl)
+        
+        let showMaxGuid = true
+        let showMinGuid = false
+       const startTime = Date.now() - mins*60*1000
+       const endTime = Date.now();
+
+       let services = [parameters.service+ ".MapServer"] 
+        if (parameters.service == "(All Services)")
+            services = "*"
+            
+        const pageSize = 10000 //maximum messages per page
+        logger.info(`Querying attribute rules logs for ${parameters.service} in the past ${mins} minutes...`)
+        let result= await adminLog.query([102003], services, pageSize, startTime ,endTime , "DEBUG")
+        let jsonRes = await result.json()
+        let allMessages = [].concat(jsonRes.logMessages)
+        
+        while (jsonRes.hasMore && jsonRes.endTime > startTime)
+        {  
+            //start paging
+            logger.info(`Aggregating messages... total so far ${allMessages.length} debug entries but more left, pulling logs before ${new Date(jsonRes.endTime)}`)
+      
+            
+            result= await adminLog.query([102003], services, pageSize, jsonRes.endTime  )
+            jsonRes = await result.json()
+            allMessages = allMessages.concat(jsonRes.logMessages)
+        }  
+
+        const arMessages = allMessages
+            .filter(m => m.message.indexOf("Attribute rule execution complete:") > -1)
+            .map (m =>  JSON.parse(m.message.replace("Attribute rule execution complete:", "")))
+            .map( m => {
+                m["Elapsed Time (ms)"] =  Math.round(m["Elapsed Time"]*1000000)/1000
+               // m["Arcade Evaluation Time:"] = Math.round(m["Arcade Evaluation Time:"]*1000,6)
+                //m.ArcadeTime = m["Arcade Evaluation Time:"]
+                
+                delete  m["Arcade Evaluation Time:"];
+                delete  m["Elapsed Time"];
+                //delete m ['GlobalID'];
+                return m
+            })
+            .sort( (m1, m2) => m2["Elapsed Time (ms)"]- m1["Elapsed Time (ms)"])
+            .reduce( ( prev, cur ) => {
+                if (prev [cur["Rule name"]] === undefined)
+                   { 
+                       prev [cur["Rule name"]] =  {
+                           "totalTime": 0,
+                           "occurrence": 0,
+                           "minTime":  Number.MAX_SAFE_INTEGER,
+                           "maxTime": -1,
+                           "avgTime": 0,
+                           "maxGuid": null,
+                           "minGuid": null
+                       };
+                     }
+                
+                     prev [cur["Rule name"]].totalTime = prev [cur["Rule name"]].totalTime + cur["Elapsed Time (ms)"]
+                      
+                     if (cur["Elapsed Time (ms)"] < prev [cur["Rule name"]].minTime ) {
+                        prev [cur["Rule name"]].minTime = cur["Elapsed Time (ms)"];
+                        prev [cur["Rule name"]].minGuid = cur["GlobalID"];
+                     }
+
+                    if (cur["Elapsed Time (ms)"] > prev [cur["Rule name"]].maxTime ){
+                        prev [cur["Rule name"]].maxTime = cur["Elapsed Time (ms)"];
+                        prev [cur["Rule name"]].maxGuid = cur["GlobalID"];
+                    }
+                     
+                    prev [cur["Rule name"]].occurrence++
+                     
+                    prev [cur["Rule name"]].avgTime = prev [cur["Rule name"]].totalTime / prev [cur["Rule name"]].occurrence
+
+                return prev
+            }, {})
+
+        const rules = Object.keys(arMessages)
+        .map(a => {
+                const rule = {}
+                rule["Attribute Rule"] = a;
+                rule["Total Cost (ms)"] = parseFloat(arMessages[a].totalTime.toFixed(2))
+                if (!showMinGuid && !showMaxGuid) rule["Average Cost (ms)"] = parseFloat(arMessages[a].avgTime.toFixed(2))
+                rule["Max execution time (ms)"] = parseFloat(arMessages[a].maxTime.toFixed(2))
+                if (showMaxGuid) rule["Max GUID"] = arMessages[a].maxGuid
+                rule["Min execution time (ms)"] = parseFloat(arMessages[a].minTime.toFixed(2))
+                if (showMinGuid) rule["Min GUID"] = arMessages[a].minGuid
+                if (!showMinGuid && !showMaxGuid) rule["Occurrence"] = arMessages[a].occurrence;
+                return rule;
+        })
+        .sort( (m1, m2) => m2["Total Cost (ms)"] -m1["Total Cost (ms)"])
+        console.table(rules)
+
+        /*
+        Attribute Rule                        
+        │ Total Cost (ms) 
+        │ Max execution time (ms) 
+        │ Max GUID 
+        │ Min execution time (m
+
+        */
+        
+        const header = document.createElement("tr");
+        const cAttributeRule = document.createElement("th");
+        cAttributeRule.textContent = "Attribute Rule"
+      
+        const cTotalCost = document.createElement("th");
+        cTotalCost.textContent = "Total Cost (ms)"
+      
+        const cMaxExecutionTime = document.createElement("th");
+        cMaxExecutionTime.textContent = "Max execution time (ms)"
+
+        const cMaxGuid = document.createElement("th");
+        cMaxGuid.textContent = "Max GUID"
+
+        const cMinExecutionTime = document.createElement("th");
+        cMinExecutionTime.textContent = "Min execution time (ms)"
+
+ 
+        header.appendChild (cAttributeRule)
+        header.appendChild (cTotalCost)
+        header.appendChild (cMaxExecutionTime)
+        header.appendChild (cMaxGuid)
+        header.appendChild (cMinExecutionTime)
+    
+        tblResult.appendChild(header)
+
+
+        rules.forEach(rule => 
+            {
+             
+                const logRow = document.createElement("tr");
+                const cAttributeRule = document.createElement("td");
+                cAttributeRule.textContent = rule["Attribute Rule"]
+            
+                const cTotalCost = document.createElement("td");
+                cTotalCost.textContent = rule["Total Cost (ms)"]
+            
+                const cMaxExecutionTime = document.createElement("td");
+                cMaxExecutionTime.textContent = rule["Max execution time (ms)"]
+
+                const cMaxGuid = document.createElement("td");
+                cMaxGuid.textContent = rule["Max GUID"] 
+
+                const cMinExecutionTime = document.createElement("td");
+                cMinExecutionTime.textContent =  rule["Min execution time (ms)"]
+                
+                logRow.appendChild (cAttributeRule)
+                logRow.appendChild (cTotalCost)
+                logRow.appendChild (cMaxExecutionTime)
+                logRow.appendChild (cMaxGuid)
+                logRow.appendChild (cMinExecutionTime)
+                tblResult.appendChild(logRow)
+                
+ 
+        })
+
+
+        const totalARExecution = rules.reduce( (prev, cur) =>  prev + cur["Total Cost (ms)"], 0)
+        console.log(`Total time spend executing attribute rules (${Math.round(totalARExecution)} ms) (${Math.round(totalARExecution/1000)} s) (${Math.round(totalARExecution/(1000*60))} m)`)
+         
+
+
+}
+async function loadSQLLogs () {
+
+//build table
+const tblResult = document.getElementById("tblResult");
+//clear
+while(tblResult.firstChild) tblResult.removeChild(tblResult.firstChild)
+tblResult.appendChild(document.createTextNode("Loading...."));
+
+
+  parameters.service = cmbService.options[cmbService.selectedIndex].text
+ 
+  //create a new admin object (user might not be admin we won't use it until the user call log )
+  adminLog = new AdminLog(token, portal.serverUrl)
+ 
+  logger.info("Connected.")
+
+
+  const topLogCount = 1000;
+  const pageSize = 10000
+
+  let mins = document.getElementById("txtAge").value  //query logs for the last 30 minutes
+
+  
+  console.log(`Querying cursor sql logs for ${parameters.service} for the last ${mins} minutes ...`)
+        const startTime = Date.now() - mins*60*1000
+        const endTime = Date.now();
+        let services = [parameters.service+ ".MapServer"] 
+        if (parameters.service == "(All Services)")
+            services = "*"
+        let result= await adminLog.query([102023], services, topLogCount, startTime ,endTime , "DEBUG")
+        let jsonRes = await result.json()
+        let allMessages = [].concat(jsonRes.logMessages) 
+        allMessages = allMessages.filter(m => m.message.indexOf("EndCursor;") > -1)
+        while (jsonRes.hasMore)
+        {  
+            //start paging
+            logger.info(`Aggregating messages... total so far ${allMessages.length} entries but more left, pulling logs before ${new Date(jsonRes.endTime)}`)
+            result= await adminLog.query([102023], services, pageSize, jsonRes.endTime, null, "DEBUG")
+            jsonRes = await result.json()
+  
+            allMessages = allMessages.concat(jsonRes.logMessages.filter(m => m.message.indexOf("EndCursor;") > -1))
+        }
+      console.log ("Filtering messages...")
+      
+      allMessages = allMessages
+            .map( m=> {
+                m.dataAccessElapsed = parseFloat(m.message.split(";")[1].split(" ")[1])
+                m.executeQueryElapsed = parseFloat(m.message.split(";")[2].split(" ")[1])
+                m.totalExecutionElapsed = m.dataAccessElapsed +  m.executeQueryElapsed 
+                m.elapsed = parseFloat(m.elapsed); return m;
+
+            })
+            .sort( (m1,m2) => m2.totalExecutionElapsed - m1.totalExecutionElapsed)
+            .slice(0, 100) ;//first 100
+    
+     
+        console.log("-----Top 10 SQL----")
+        while(tblResult.firstChild) tblResult.removeChild(tblResult.firstChild)
+
+        let i =0;
+        
+        const header = document.createElement("tr");
+        const cService = document.createElement("th");
+        cService.textContent = "Source"
+        const cTime = document.createElement("th");
+        cTime.textContent = "Time"
+        const cUser = document.createElement("th");
+        cUser.textContent = "User"
+        const cMethod = document.createElement("th");
+        cMethod.textContent = "Method"
+        const cQueryTime = document.createElement("th");
+        cQueryTime.textContent = "Query Time (ms)"
+        cQueryTime.title  = "includes search + data access nextRow"
+        const cTotalTime = document.createElement("th");
+        cTotalTime.title  = "Total time the cursor was opened"
+        cTotalTime.textContent = "Total Time (ms)"
+        const cLog = document.createElement("th");
+        cLog.textContent = "Full SQL"
+        header.appendChild (cService)
+        header.appendChild (cTime)
+        header.appendChild (cUser)
+        header.appendChild (cMethod)
+        header.appendChild (cQueryTime)
+        header.appendChild (cTotalTime)
+        header.appendChild (cLog) 
+        tblResult.appendChild(header)
+
+
+        allMessages= allMessages.forEach(m => 
+            {
+             
+                const logRow = document.createElement("tr");
+                const x = m.message.split(";")
+                x.shift()
+                console.log(`id: ${i++}`)
+                console.log(`\tAt: ${new Date(m.time)} (${m.time})`)
+                console.log(`\tUser: ${m.user}`)
+                console.log(`\tTotal Time: ${numberWithCommas(Math.round(m.elapsed*1000))} ms (Total time the cursor was opened)`)
+                console.log(`\tQuery Time: ${numberWithCommas(m.totalExecutionElapsed)} ms (includes search + data access nextRow)`)
+                console.log(`\tQuery:`)
+                x.forEach(a => console.log(`\t${a}`))
+                console.log(`\n`)
+                
+                const cService = document.createElement("th");
+                cService.textContent = m.source.replace(".MapServer", "")
+
+                const cTime = document.createElement("td");
+                cTime.textContent =  new Date(m.time).toLocaleString()
+ 
+                const cUser = document.createElement("td");
+                cUser.textContent = m.user
+                const cMethod = document.createElement("td");
+                cMethod.textContent = "Cursor"
+                const cQueryTime = document.createElement("td");
+                cQueryTime.textContent = numberWithCommas(m.totalExecutionElapsed)
+                const cTotalTime = document.createElement("td");
+                cTotalTime.textContent = numberWithCommas(Math.round(m.elapsed*1000))
+                const cLog = document.createElement("td");
+                cLog.textContent = m.message.substr( m.message.indexOf("SQL: ") + 5, 50) + "..."
+                cLog.fullLog = m.message;
+                cLog.title = m.message + "\nClick to copy"
+                cLog.addEventListener("click", e=> {navigator.clipboard.writeText(e.target.fullLog); alert("Copied to clipboard")})
+                logRow.appendChild (cService)
+                logRow.appendChild (cTime)
+                logRow.appendChild (cUser)
+                logRow.appendChild (cMethod)
+                logRow.appendChild (cQueryTime)
+                logRow.appendChild (cTotalTime)
+                logRow.appendChild (cLog) 
+                tblResult.appendChild(logRow)
+                
+ 
+        })
+ 
+        
+       
+    
+
+
+
+   //await populateMessages(allMessages)
+
+   
+}
+
+ 
+function numberWithCommas(x) {
+   // return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+   return x.toLocaleString()
+}
+
+    init();
+
+    const btnTraceLogs = document.getElementById("btnTraceLogs");
+    btnTraceLogs.addEventListener("click", e => loadTraceLogs()) 
+
+    const btnValidateLogs = document.getElementById("btnValidateLogs");
+    btnValidateLogs.addEventListener("click", e => loadValidateLogs())
+
+    const btnUpdateSubnetworkLogs = document.getElementById("btnUpdateSubnetworkLogs");
+    btnUpdateSubnetworkLogs.addEventListener("click", e => loadUpdateSubnetworkLogs())
+ 
+    const btnSQLLogs = document.getElementById("btnSQLLogs");
+    btnSQLLogs.addEventListener("click", e => loadSQLLogs())
+ 
+    const btnAR = document.getElementById("btnAR");
+    btnAR.addEventListener("click", e => loadAttributeRules())
+ 
+
+
+    async function populateMessages(allTheMessages) {
+
+        //sort messages
+                
+        const allMessages = allTheMessages.map(m => {
+            const newMessage = Object.assign({}, m);
+            delete newMessage.machine;
+            delete newMessage.type;
+            delete newMessage.code;
+            delete newMessage.requestID;
+            delete newMessage.process;
+            delete newMessage.thread;
+            newMessage.elapsedms = parseInt (parseFloat(newMessage.elapsed) * 1000)
+            newMessage.time = new Date(newMessage.time).toLocaleString()
+            delete newMessage.elapsed
+            return newMessage;
+        })
+        .sort( (m1,m2) => m2.elapsedms - m1.elapsedms)
+        
+        //build table
+        const tblResult = document.getElementById("tblResult");
+        //clear
+        while(tblResult.firstChild) tblResult.removeChild(tblResult.firstChild)
+
+        const header = document.createElement("tr");
+        const cService = document.createElement("th");
+        cService.textContent = "Source"
+        const cTime = document.createElement("th");
+        cTime.textContent = "Time"
+        const cUser = document.createElement("th");
+        cUser.textContent = "User"
+        const cMethod = document.createElement("th");
+        cMethod.textContent = "Method"
+        const cElapsedMS = document.createElement("th");
+        cElapsedMS.textContent = "Elapsed (ms)"
+        const cLog = document.createElement("th");
+        cLog.textContent = "Full Log"
+        header.appendChild (cService)
+        header.appendChild (cTime)
+        header.appendChild (cUser)
+        header.appendChild (cMethod)
+        header.appendChild (cElapsedMS)
+        header.appendChild (cLog) 
+        tblResult.appendChild(header)
+        allMessages.forEach(m => {
+            const logRow = document.createElement("tr");
+            const cService = document.createElement("td");
+            cService.textContent = m.source.replace(".MapServer", "")
+            const cTime = document.createElement("td");
+            cTime.textContent = m.time
+            const cUser = document.createElement("td");
+            cUser.textContent = m.user
+            const cMethod = document.createElement("td");
+            cMethod.textContent = m.methodName
+            const cElapsedMS = document.createElement("td");
+            cElapsedMS.textContent = m.elapsedms
+            const cLog = document.createElement("td");
+            cLog.textContent = "..."
+            cLog.fullLog = m.message;
+            cLog.addEventListener("click", e=> {navigator.clipboard.writeText(e.target.fullLog); alert("Copied to clipboard")})
+            logRow.appendChild (cService)
+            logRow.appendChild (cTime)
+            logRow.appendChild (cUser)
+            logRow.appendChild (cMethod)
+            logRow.appendChild (cElapsedMS)
+            logRow.appendChild (cLog) 
+            tblResult.appendChild(logRow)
+        })
+    }
+    </script>
+</body>
+</html>

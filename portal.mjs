@@ -1,15 +1,16 @@
 import { makeRequest } from "./makerequest.mjs"
-import { logger } from "./logger.mjs"
+import  logger  from "./logger.mjs"
 
 export class Portal{
         
-    constructor(url, username, password, expiration = 300, serverUrl = undefined)
+    constructor(url, username, password, expiration = 300, serverUrl = undefined, referer)
     {
         this.url = url;
         this.username = username;
         this.password = password;
         this.expiration = expiration;
         this.serverUrl = serverUrl;
+        this.referer = referer
     }
 
 
@@ -25,7 +26,7 @@ export class Portal{
                     const postJson = {
                         username: self.username,
                         password: self.password,
-                        referer: "node",
+                        referer: self.referer,
                         expiration: self.expiration,
                         f: "json"
                     }
@@ -71,7 +72,7 @@ export class Portal{
                     token: self.token
                 }
         
-                const serversUrl =  self.url + "/sharing/rest/portals/self/servers"
+                const serversUrl =  self.url + `/sharing/rest/portals/self/servers?token=${self.token}`
                 logger.info( "About to query federated servers");
                     
                 //query for federated servers.

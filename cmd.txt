@@ -1,2 +1,2 @@
-update subnetworks --all
+update subnetworks --all --desc
 exit

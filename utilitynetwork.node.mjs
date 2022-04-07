@@ -8,9 +8,9 @@
 /*
 import fetch from "node-fetch"
 */
-import { logger } from "./logger.mjs"
-import ProgressBar from "progress"
- 
+import   logger   from "./logger.mjs" 
+import { makeRequest } from "./makerequest.mjs"
+
   
 
 export class UtilityNetwork {
@@ -122,6 +122,7 @@ export class UtilityNetwork {
 
         }
             
+        /*
             //a function that detects associations with from/to globalId that don't exist in the source tables.
             //if one of the endpoints do not exists fails.. 
         returnInvalidAssociations() {
@@ -178,7 +179,7 @@ export class UtilityNetwork {
            
 
         }   
-
+        */
         queryMoment(moment = ["definitionModification"]) {
               
             let thisObj = this; 
@@ -1086,6 +1087,7 @@ export class UtilityNetwork {
  
 
 
+    /*
      //Makes a request
      function makeRequest (opts) {
         
@@ -1134,7 +1136,7 @@ export class UtilityNetwork {
  
   });
 }
-
+*/
 
 
 const v = (o, f, vIfNotFound=null) => {

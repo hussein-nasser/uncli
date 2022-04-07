@@ -4,10 +4,10 @@ import { Portal } from "./portal.mjs"
 import { UtilityNetwork } from "./utilitynetwork.node.mjs"
 import { AdminLog } from "./adminlog.mjs"
 
-import { logger } from "./logger.mjs"
+import  logger  from "./logger.mjs"
 import  fetch  from "node-fetch"
 //update version
-let version = "0.0.69";
+let version = "0.0.70";
 const GENERATE_TOKEN_TIME_MIN = 30;
 
 let rl = null;
@@ -408,11 +408,15 @@ const inputs = {
         }
     },
 
-    "^update subnetworks --all$" : async () => {
+    "^update subnetworks --all" : async input => {
  
         do  {
+
+            let sort = "asc";
+            if (input.indexOf("--desc") > 0) sort = "desc"
+
             console.log("Querying all subnetworks that are dirty.");
-            let subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty=1", "domainnetworkname,tiername,subnetworkname");
+            let subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty=1", `domainnetworkname  ${sort},tiername ${sort},subnetworkname ${sort}`);
             console.log(`Discovered ${subnetworks.features.length} dirty subnetworks.`);
 
             for (let i = 0;  i < subnetworks.features.length; i++) {
@@ -774,16 +778,30 @@ const inputs = {
   
             allMessages = allMessages.concat(jsonRes.logMessages.filter(m => m.message.indexOf("------ Trace Parameters ----") > -1))
         }  
-        allMessages.forEach(m => {
+
+        allMessages = allMessages.map(m => {
             const newMessage = Object.assign({}, m);
-            delete newMessage.message
             delete newMessage.source;
             delete newMessage.machine;
             delete newMessage.type;
+            delete newMessage.code;
             delete newMessage.requestID;
+            delete newMessage.process;
             delete newMessage.thread;
-            delete newMessage.time;
+            newMessage.elapsedms = parseInt (parseFloat(newMessage.elapsed) * 1000)
+            newMessage.time = new Date(newMessage.time).toLocaleString()
+            delete newMessage.elapsed
+             return newMessage;
+        })
+        .sort( (m1,m2) => m2.elapsedms - m1.elapsedms)
 
+        const summaryMessages = allMessages.map(m => {const newM = Object.assign({}, m); delete newM.message; return newM})
+        console.table(summaryMessages)
+
+        allMessages.forEach(m => {
+            const newMessage = Object.assign({}, m);
+            delete newMessage.message
+         
             console.table([newMessage])
             console.log(m.message)  
         })
@@ -802,37 +820,76 @@ const inputs = {
         if (inputParam != null && inputParam.length > 0)
             mins = inputParam[0].replace("--age ", "")
  
-        console.log(`Querying validate logs for ${parameters.service} for the last ${mins} minutes ...`)
-        const startTime = Date.now() - mins*60*1000
-        const endTime = Date.now();
-        let result= await adminLog.query([102003], [parameters.service+ ".MapServer"], topLogCount, startTime ,endTime , "VERBOSE")
-        let jsonRes = await result.json()
-        let allMessages = [].concat(jsonRes.logMessages) 
-        allMessages = allMessages.filter(m => m.message.indexOf("-------- Environment ---") > -1 && m.message.indexOf("------ Trace Parameters ----") < 0)
-        while (jsonRes.hasMore)
-        {  
-            //start paging
-            logger.info(`Aggregating messages... total so far ${allMessages.length} entries but more left, pulling logs before ${new Date(jsonRes.endTime)}`)
-            result= await adminLog.query([102003], [parameters.service + ".MapServer"], pageSize, jsonRes.endTime, null, "VERBOSE")
-            jsonRes = await result.json()
-  
-            allMessages = allMessages.concat(jsonRes.logMessages.filter(m => m.message.indexOf("-------- Environment ---") > -1 && m.message.indexOf("------ Trace Parameters ----") == -1))
-        }  
+            
+  console.log(`Querying validate logs for ${parameters.service} for the last ${mins} minutes ...`)
+  const startTime = Date.now() - mins*60*1000
+  const endTime = Date.now();
+  let result= await adminLog.query([102003], [parameters.service+ ".MapServer"], topLogCount, startTime ,endTime , "VERBOSE")
+  let jsonRes = await result.json()
+  let allMessages = [].concat(jsonRes.logMessages) 
+  allMessages = allMessages.filter(m => m.message.indexOf("-------- Environment ---") > -1 && m.message.indexOf("The network is built.") > -1 && m.methodName == 'BuildEngineLog')
+  while (jsonRes.hasMore)
+  {  
+      //start paging
+      logger.info(`Aggregating messages... total so far ${allMessages.length} entries but more left, pulling logs before ${new Date(jsonRes.endTime)}`)
+      let services = [parameters.service + ".MapServer"]
+      result= await adminLog.query([102003], services, pageSize, jsonRes.endTime, null, "VERBOSE")
+      jsonRes = await result.json()
+
+      allMessages = allMessages.concat(jsonRes.logMessages.filter(m => m.message.indexOf("-------- Environment ---") > -1 && m.message.indexOf("------ Trace Parameters ----") == -1))
+  }  
+
+
+
+   
+  //validate logs missing elapsed populate it
+  allMessages = allMessages.map( m => {
+      try{
+          
+          //The network is built. 0.093 seconds (4.982 total) - 29 MB memory
+
+      let re = /The network is built. [-+]?([0-9]*\.[0-9]+|[0-9]+) seconds \([-+]?([0-9]*\.[0-9]+|[0-9]+) total\)/;
+      let res = re.exec(m.message)
+      if (res && res.length  > 1)
+          m.elapsed = res[2]
+      
+          return m;
+      }
+      catch(ex){
+          return m;
+      }
+  })
 
     
-        allMessages.forEach(m => {
+         
+        allMessages = allMessages.map(m => {
             const newMessage = Object.assign({}, m);
-            delete newMessage.message
             delete newMessage.source;
             delete newMessage.machine;
             delete newMessage.type;
+            delete newMessage.code;
             delete newMessage.requestID;
+            delete newMessage.process;
             delete newMessage.thread;
-            delete newMessage.time;
+            newMessage.elapsedms = parseInt (parseFloat(newMessage.elapsed) * 1000)
+            newMessage.time = new Date(newMessage.time).toLocaleString()
+            delete newMessage.elapsed
+             return newMessage;
+        })
+        .sort( (m1,m2) => m2.elapsedms - m1.elapsedms)
 
+        const summaryMessages = allMessages.map(m => {const newM = Object.assign({}, m); delete newM.message; return newM})
+        console.table(summaryMessages)
+
+        allMessages.forEach(m => {
+            const newMessage = Object.assign({}, m);
+            delete newMessage.message
+         
             console.table([newMessage])
             console.log(m.message)  
         })
+         
+
 
     },
 
@@ -864,19 +921,58 @@ const inputs = {
   
             allMessages = allMessages.concat(jsonRes.logMessages.filter(m => m.message.indexOf("---- Subnetwork Parameters ----") > -1))
         }  
-        allMessages.forEach(m => {
+        
+        
+        
+        //update subnetwork missing elapsed populate it
+        allMessages = allMessages.map( m => {
+            try{
+ 
+            let re = /Total \([-+]?([0-9]*\.[0-9]+|[0-9]+) seconds\)/;
+            let res = re.exec(m.message)
+            if (res && res.length  > 1)
+                m.elapsed = res[1]
+
+            re = /Total update subnetwork time \([-+]?([0-9]*\.[0-9]+|[0-9]+) seconds\)/;
+            res = re.exec(m.message)
+            if (res && res.length  > 1)
+                m.elapsed = res[1]
+            
+            return m;
+            }
+            catch(ex){
+                return m;
+            }
+        })
+
+
+        allMessages = allMessages.map(m => {
             const newMessage = Object.assign({}, m);
-            delete newMessage.message
             delete newMessage.source;
             delete newMessage.machine;
             delete newMessage.type;
+            delete newMessage.code;
             delete newMessage.requestID;
+            delete newMessage.process;
             delete newMessage.thread;
-            delete newMessage.time;
+            newMessage.elapsedms = parseInt (parseFloat(newMessage.elapsed) * 1000)
+            newMessage.time = new Date(newMessage.time).toLocaleString()
+            delete newMessage.elapsed
+             return newMessage;
+        })
+        .sort( (m1,m2) => m2.elapsedms - m1.elapsedms)
 
+        const summaryMessages = allMessages.map(m => {const newM = Object.assign({}, m); delete newM.message; return newM})
+        console.table(summaryMessages)
+
+        allMessages.forEach(m => {
+            const newMessage = Object.assign({}, m);
+            delete newMessage.message
+         
             console.table([newMessage])
             console.log(m.message)  
         })
+         
          
     },
 
@@ -942,60 +1038,6 @@ const inputs = {
     },
         
 
-    
-    "^cursorlogs --age": async input => {
-        const topLogCount = 1000;
-        const pageSize = 10000
-
-        const inputParam = input.match(/--age .*/gm)
-        let mins = 30;  //query logs for the last 30 minutes
-        if (inputParam != null && inputParam.length > 0)
-            mins = inputParam[0].replace("--age ", "")
- 
-        console.log(`Querying cursor sql logs for ${parameters.service} for the last ${mins} minutes ...`)
-        const startTime = Date.now() - mins*60*1000
-        const endTime = Date.now();
-        let result= await adminLog.query([102023], [parameters.service+ ".MapServer"], topLogCount, startTime ,endTime , "DEBUG")
-        let jsonRes = await result.json()
-        let allMessages = [].concat(jsonRes.logMessages) 
-        allMessages = allMessages.filter(m => m.message.indexOf("EndCursor;") > -1)
-        while (jsonRes.hasMore)
-        {  
-            //start paging
-            logger.info(`Aggregating messages... total so far ${allMessages.length} entries but more left, pulling logs before ${new Date(jsonRes.endTime)}`)
-            result= await adminLog.query([102023], [parameters.service + ".MapServer"], pageSize, jsonRes.endTime, null, "DEBUG")
-            jsonRes = await result.json()
-  
-            allMessages = allMessages.concat(jsonRes.logMessages.filter(m => m.message.indexOf("EndCursor;") > -1))
-        }  
-
-
-     //   
-     allMessages= allMessages.map(m => {
-
-            const r= m.message.split (";")
-            delete r[0];
-            delete r[1];
-            delete r[3];
-            return r;
-            
-            const newMessage = Object.assign({}, m);
-        
-            delete newMessage.source;
-            delete newMessage.machine;
-            delete newMessage.type;
-            delete newMessage.requestID;
-            delete newMessage.methodName;
-            delete newMessage.process;
-            delete newMessage.thread;
-            delete newMessage.time;
-            delete newMessage.code;
-
-            return newMessage
- 
-        })
-        console.table(allMessages)
-    },
 
 
     "^arlogs --byrule": async input => {
@@ -1010,17 +1052,29 @@ const inputs = {
         if (inputParam != null && inputParam.length > 0 && inputParam[0].indexOf("--minguid") > -1)
             showMinGuid = true
 
+            
+        const ageInputParam = input.match(/--age [0-9]*/)
+        let mins = 30;  //query logs for the last 30 minutes
+        if (ageInputParam != null && ageInputParam.length > 0)
+            mins = ageInputParam[0].replace("--age ", "")
+        
+            
+       const startTime = Date.now() - mins*60*1000
+       const endTime = Date.now();
+
         const pageSize = 10000 //maximum messages per page
-        logger.info(`Querying attribute rules logs for ${parameters.service} ...`)
-        let result= await adminLog.query([102003], [parameters.service + ".MapServer"], pageSize)
+        logger.info(`Querying attribute rules logs for ${parameters.service} in the past ${mins} minutes...`)
+        let result= await adminLog.query([102003], [parameters.service + ".MapServer"], pageSize, startTime ,endTime , "DEBUG")
         let jsonRes = await result.json()
         let allMessages = [].concat(jsonRes.logMessages)
         
-        while (jsonRes.hasMore)
+        while (jsonRes.hasMore && jsonRes.endTime > startTime)
         {  
             //start paging
             logger.info(`Aggregating messages... total so far ${allMessages.length} debug entries but more left, pulling logs before ${new Date(jsonRes.endTime)}`)
-            result= await adminLog.query([102003], [parameters.service + ".MapServer"], pageSize, jsonRes.endTime)
+      
+            
+            result= await adminLog.query([102003], [parameters.service + ".MapServer"], pageSize, jsonRes.endTime  )
             jsonRes = await result.json()
             allMessages = allMessages.concat(jsonRes.logMessages)
         }  
