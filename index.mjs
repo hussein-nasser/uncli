@@ -410,13 +410,14 @@ const inputs = {
 
     "^update subnetworks --all" : async input => {
  
+        let subnetworks;
         do  {
 
             let sort = "asc";
             if (input.indexOf("--desc") > 0) sort = "desc"
 
             console.log("Querying all subnetworks that are dirty.");
-            let subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty=1", `domainnetworkname  ${sort},tiername ${sort},subnetworkname ${sort}`);
+            subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty=1", `domainnetworkname  ${sort},tiername ${sort},subnetworkname ${sort}`);
             console.log(`Discovered ${subnetworks.features.length} dirty subnetworks.`);
 
             for (let i = 0;  i < subnetworks.features.length; i++) {
@@ -451,6 +452,7 @@ const inputs = {
     },
    "^export subnetworks --all --folder .*$|^export subnetworks --all$" : async input => {
  
+        let subnetworks 
         //create folder
         const file = input.match(/--folder .*/gm)
         let inputDir = "Exported"
@@ -462,7 +464,7 @@ const inputs = {
         do {
 
             console.log("Querying all subnetworks that are clean.");
-            let subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty=0","domainnetworkname,tiername,subnetworkname");
+            subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty=0","domainnetworkname,tiername,subnetworkname");
             console.log(`Discovered ${subnetworks.features.length} subnetworks that can be exported.`);
             for (let i = 0;  i < subnetworks.features.length; i++) {
                 const f = subnetworks.features[i]
