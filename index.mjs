@@ -7,7 +7,7 @@ import { AdminLog } from "./adminlog.mjs"
 import  logger  from "./logger.mjs"
 import  fetch  from "node-fetch"
 //update version
-let version = "0.0.71";
+let version = "0.0.72";
 const GENERATE_TOKEN_TIME_MIN = 30;
 
 let rl = null;
@@ -411,23 +411,33 @@ const inputs = {
     "^update subnetworks --all" : async input => {
  
         let subnetworks;
+        let more = false;
+        let failedSubnetworks = []
         do  {
 
             let sort = "asc";
             if (input.indexOf("--desc") > 0) sort = "desc"
+            let failedSubWhereClause = ""
+            
+            if (failedSubnetworks.length > 0 )
+                failedSubWhereClause = " AND SUBNETWORKNAME NOT IN (" + failedSubnetworks.join(",") + ")"
 
             console.log("Querying all subnetworks that are dirty.");
-            subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty=1", `domainnetworkname  ${sort},tiername ${sort},subnetworkname ${sort}`);
+            subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty=1 " + failedSubWhereClause, `domainnetworkname  ${sort},tiername ${sort},subnetworkname ${sort}`);
             console.log(`Discovered ${subnetworks.features.length} dirty subnetworks.`);
 
             for (let i = 0;  i < subnetworks.features.length; i++) {
                 const f = subnetworks.features[i]
-                console.log("Updating Subnetwork " + v(f.attributes,"subnetworkName"));
+                const subnetworkName = v(f.attributes,"subnetworkName")
+                console.log("Updating Subnetwork " + subnetworkName);
                 
                 const fromDate = new Date();
                  
                 const subnetworkResult = await un.updateSubnetworks(v(f.attributes,"domainNetworkName"), v(f.attributes,"tierName"), v(f.attributes,"subnetworkName"),false);
-                
+                //check if we have processed this subnetwork (maybe be an error)
+                if (subnetworkResult.success == false)
+                    failedSubnetworks.push("'" + subnetworkName + "'")
+
                 const toDate = new Date();
                 const timeEnable = toDate.getTime() - fromDate.getTime();
                 subnetworkResult.duration =  numberWithCommas(Math.round(timeEnable)) + " ms"
