@@ -1,6 +1,6 @@
 {
   "name": "un-cli",
-  "version": "0.0.73",
+  "version": "0.0.74",
   "description": "Command line interface for working with ArcGIS Utility Network Extension",
   "main": "index.mjs",
   "bin": {

@@ -87,12 +87,14 @@
            
         cmbService = document.getElementById("cmbService")
         while (cmbService.firstChild) cmbService.removeChild(cmbService.firstChild)
-        
+         
+        token = await getToken(parameters);
+
+        //if we logged in successfully 
         const opt = document.createElement("option")
         opt.textContent = "(All Services)"
         cmbService.appendChild (opt)
 
-        token = await getToken(parameters);
         const services = await portal.services()
         const featureServices = services.services.filter(s => s.type == "FeatureServer")
         featureServices.forEach(s=> {
@@ -390,16 +392,16 @@ async function loadAttributeRules () {
 }
 async function loadSQLLogs () {
 
-//build table
-const tblResult = document.getElementById("tblResult");
-//clear
-while(tblResult.firstChild) tblResult.removeChild(tblResult.firstChild)
- 
+    //build table
+    const tblResult = document.getElementById("tblResult");
+    //clear
+    while(tblResult.firstChild) tblResult.removeChild(tblResult.firstChild)
+        
 
-  parameters.service = cmbService.options[cmbService.selectedIndex].text
-   
-  
-  let mins = document.getElementById("txtAge").value  //query logs for the last 30 minutes
+    parameters.service = cmbService.options[cmbService.selectedIndex].text
+    
+    
+    let mins = document.getElementById("txtAge").value  //query logs for the last 30 minutes
 
   
     console.log(`Querying cursor sql logs for ${parameters.service} for the last ${mins} minutes ...`)
@@ -407,30 +409,7 @@ while(tblResult.firstChild) tblResult.removeChild(tblResult.firstChild)
         //startTime is the most recent
         //endTime is the oldest
 
-        
-
-    /*
-     const topLogCount = 100;
-        const startTime = Date.now()
-        const endTime = Date.now() - mins*60*1000
-        let services = [theService + ".MapServer"] 
-        if (theService == "(All Services)")
-            services = "*"
-        let result= await adminLog.query([code], services, topLogCount, startTime ,endTime , "DEBUG")
-        let jsonRes = await result.json()
-        let allMessages = [].concat(jsonRes.logMessages) 
-        allMessages = allMessages.filter(m => m.message.indexOf("EndCursor;") > -1)
-        while (jsonRes.hasMore)
-        {  
-            //start paging
-            logger.info(`Aggregating messages... total so far ${allMessages.length} entries but more left, pulling logs between ${new Date(jsonRes.endTime)} and ${new Date(endTime)}`)
-            result= await adminLog.query([102023], services, pageSize, jsonRes.endTime, endTime, "DEBUG")
-            jsonRes = await result.json()
-  
-            allMessages = allMessages.concat(jsonRes.logMessages.filter(m => m.message.indexOf("EndCursor;") > -1))
-        }
-        */
-
+         
      //page query the admin log
       let allMessages = await adminLogQueryWithPaging(mins, parameters.service, [102023], "EndCursor;", "DEBUG")
 
@@ -472,6 +451,8 @@ while(tblResult.firstChild) tblResult.removeChild(tblResult.firstChild)
         let i =0;
         
         const header = document.createElement("tr");
+        const thead = docuemnt.createElement("thead")
+        thead.appendChild(header)
         const cService = document.createElement("th");
         cService.textContent = "Source"
         const cTime = document.createElement("th");
@@ -534,7 +515,7 @@ while(tblResult.firstChild) tblResult.removeChild(tblResult.firstChild)
                 const cLog = document.createElement("td");
                 const cLogText = document.createElement("input")
                 cLogText.type = "text"
-                cLogText.style = "width:500px"
+                cLogText.style = "width:800px"
                 cLogText.value = m.message.substr( m.message.indexOf("SQL: ") + 5, m.message.length)
                 cLogText.readOnly= true;
                 cLog.appendChild(cLogText)
@@ -555,12 +536,6 @@ while(tblResult.firstChild) tblResult.removeChild(tblResult.firstChild)
  
         })
  
-        
-       
-    
-
-
-
    //await populateMessages(allMessages)
 
    
@@ -718,27 +693,22 @@ function numberWithCommas(x) {
     }
 
 
-    /*
-     const topLogCount = 100;f
-        const startTime = Date.now()
-        const endTime = Date.now() - mins*60*1000
-        let services = [theService + ".MapServer"] 
-        if (theService == "(All Services)")
-            services = "*"
-        let result= await adminLog.query([code], services, topLogCount, startTime ,endTime , "DEBUG")
-        let jsonRes = await result.json()
-        let allMessages = [].concat(jsonRes.logMessages) 
-        allMessages = allMessages.filter(m => m.message.indexOf("EndCursor;") > -1)
-        while (jsonRes.hasMore)
-        {  
-            //start paging
-            logger.info(`Aggregating messages... total so far ${allMessages.length} entries but more left, pulling logs between ${new Date(jsonRes.endTime)} and ${new Date(endTime)}`)
-            result= await adminLog.query([102023], services, pageSize, jsonRes.endTime, endTime, "DEBUG")
-            jsonRes = await result.json()
-  
-            allMessages = allMessages.concat(jsonRes.logMessages.filter(m => m.message.indexOf("EndCursor;") > -1))
-        }
-        */
+    
+    function sortTable(table, col, reverse) {
+    var tb = table.tBodies[0], // use `<tbody>` to ignore `<thead>` and `<tfoot>` rows
+        tr = Array.prototype.slice.call(tb.rows, 0), // put rows into array
+        i;
+    reverse = -((+reverse) || -1);
+    tr = tr.sort(function (a, b) { // sort rows
+        return reverse // `-1 *` if want opposite order
+            * (a.cells[col].textContent.trim() // using `.textContent.trim()` for test
+                .localeCompare(b.cells[col].textContent.trim())
+               );
+    });
+    for(i = 0; i < tr.length; ++i) tb.appendChild(tr[i]); // append each row in order
+}
+ 
+
     </script>
 </body>
 </html>

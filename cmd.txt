@@ -1,2 +1,2 @@
-update subnetworks --all --desc
+export subnetworks --all
 exit

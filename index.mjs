@@ -7,7 +7,7 @@ import { AdminLog } from "./adminlog.mjs"
 import  logger  from "./logger.mjs"
 import  fetch  from "node-fetch"
 //update version
-let version = "0.0.73";
+let version = "0.0.74";
 const GENERATE_TOKEN_TIME_MIN = 30;
 
 let rl = null;
@@ -471,11 +471,17 @@ const inputs = {
              inputDir = file[0].replace("--folder ", "")
         //create directory if doesn't exists
         if (!fs.existsSync(inputDir))  fs.mkdirSync(inputDir)
- 
+        let exportedSubnetworks = [];
+
         do {
 
+            let exportedSubnetworksWhereClause = ""
+            
+            if (exportedSubnetworks.length > 0 )
+                exportedSubnetworksWhereClause = " AND SUBNETWORKNAME NOT IN (" + exportedSubnetworks.join(",") + ")"
+ 
             logger.info("Querying all subnetworks that are clean.");
-            subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty=0","domainnetworkname,tiername,subnetworkname");
+            subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty=0 " + exportedSubnetworksWhereClause,"domainnetworkname,tiername,subnetworkname");
             logger.info(`Discovered ${subnetworks.features.length} subnetworks that can be exported.`);
             for (let i = 0;  i < subnetworks.features.length; i++) {
                 const f = subnetworks.features[i]
@@ -485,10 +491,10 @@ const inputs = {
                 const fromDate = new Date();
                 
                 const subnetworkResult = await un.exportSubnetworks(v(f.attributes,"domainNetworkName"), v(f.attributes,"tierName"), v(f.attributes,"subnetworkName"),false);
-                 
-                
+                  
                 //code
-    
+                exportedSubnetworks.push("'" + v(f.attributes,"subnetworkName") + "'")
+
                 const toDate = new Date();
                 const timeEnable = toDate.getTime() - fromDate.getTime();
                 subnetworkResult.duration =  numberWithCommas(timeEnable) + " ms"
@@ -498,6 +504,7 @@ const inputs = {
                     logger.info("Export subnetwork failed " + JSON.stringify(subnetworkResult))
                     continue;
                 }
+
     
                 //fetch the json and write it to disk 
                 const subContent = await fetch(subnetworkResult.url);
@@ -512,7 +519,7 @@ const inputs = {
     
             }
         }
-        while (subnetworks.features.length > 0)
+        while (subnetworks?.features?.length > 0)
        
     },
    
