@@ -44,7 +44,7 @@
     
     const parameters = {
         "user": "unadmin",
-        "password": "xxx",
+        "password": "unadmin.109",
         "portal": "https://utilitynetwork.esri.com/portal",
         "service": "RedTrolley_SQLServer",
         "referer": "https://utilitynetwork.esri.com/log"
@@ -392,8 +392,25 @@ while(tblResult.firstChild) tblResult.removeChild(tblResult.firstChild)
       
       allMessages = filterMessages(allMessages)
             .map( m=> {
-                m.dataAccessElapsed = parseFloat(m.message.split(";")[1].split(" ")[1])
-                m.executeQueryElapsed = parseFloat(m.message.split(";")[2].split(" ")[1])
+                m.dataAccessElapsed =0;
+                m.executeQueryElapsed = 0;
+                const sDataAccess = "DataAccess "
+                const idxDataAccess = m.message.indexOf(sDataAccess)
+                if (idxDataAccess >=0) {
+                    const idxNext = m.message.indexOf(" ",idxDataAccess + sDataAccess.length )
+                    m.dataAccessElapsed = parseInt(m.message.substr( idxDataAccess + sDataAccess.length, idxNext - idxDataAccess - sDataAccess.length))
+                }
+
+                const sExecuteQuery = "ExecuteQuery "
+                const idxExecuteQuery = m.message.indexOf(sExecuteQuery)
+                if (idxExecuteQuery >=0) {
+                    const idxNext = m.message.indexOf(" ",idxExecuteQuery + sExecuteQuery.length)
+                    m.executeQueryElapsed = parseInt(m.message.substr( idxExecuteQuery + sExecuteQuery.length, idxNext - idxExecuteQuery - sExecuteQuery.length))
+                }
+                
+
+                //m.dataAccessElapsed = parseFloat(m.message.split(";")[1].split(" ")[1])
+               //m.executeQueryElapsed = parseFloat(m.message.split(";")[2].split(" ")[1])
                 m.totalExecutionElapsed = m.dataAccessElapsed +  m.executeQueryElapsed 
                 m.elapsed = parseFloat(m.elapsed); return m;
 
@@ -402,7 +419,7 @@ while(tblResult.firstChild) tblResult.removeChild(tblResult.firstChild)
             .slice(0, 100) ;//first 100
     
      
-        console.log("-----Top 10 SQL----")
+        console.log("-----Top SQL----")
         while(tblResult.firstChild) tblResult.removeChild(tblResult.firstChild)
 
         let i =0;
