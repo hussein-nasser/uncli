@@ -7,7 +7,7 @@ import { AdminLog } from "./adminlog.mjs"
 import  logger  from "./logger.mjs"
 import  fetch  from "node-fetch"
 //update version
-let version = "0.0.72";
+let version = "0.0.73";
 const GENERATE_TOKEN_TIME_MIN = 30;
 
 let rl = null;
@@ -53,10 +53,10 @@ function parseInput(){
 
       if (Object.values(params).includes(null))
       {
-        console.log ("HELP: uncli --portal https://unportal.domain.com/portal --service servicename --user username --password password [--gdbversion* user.version --server  https://federatedserver.domain.com/server --file commandfile* --verify true|false]")    
-        console.log("--file commandfile is optional and you can pass a path to a file with a list of command to execute. ")
-        console.log("--gdbversion is optional and allows the UN to be opened in that version. When not specified sde.DEFAULT is used.")
-        console.log("--server is optional except when there are more than one federated server sites to the portal. If the portal only has one server it will be selected.")
+        logger.info ("HELP: uncli --portal https://unportal.domain.com/portal --service servicename --user username --password password [--gdbversion* user.version --server  https://federatedserver.domain.com/server --file commandfile* --verify true|false]")    
+        logger.info("--file commandfile is optional and you can pass a path to a file with a list of command to execute. ")
+        logger.info("--gdbversion is optional and allows the UN to be opened in that version. When not specified sde.DEFAULT is used.")
+        logger.info("--server is optional except when there are more than one federated server sites to the portal. If the portal only has one server it will be selected.")
         process.exit();
       }
      
@@ -73,7 +73,7 @@ async function getToken(parameters) {
 }
 
 async function regenerateToken(parameters) {
-    console.log("Regenerating token.")
+    logger.info("Regenerating token.")
     const token = await getToken(parameters);
     un.token = token;
     executeInput("clear");
@@ -193,7 +193,7 @@ const inputs = {
     },
     "^whoami$": async () => {
  
-        console.log(`${parameters.user}@${parameters.service}@${parameters.gdbversion}`)
+        logger.info(`${parameters.user}@${parameters.service}@${parameters.gdbversion}`)
 
     },
     "^def --layers$|^layers$": async () => {
@@ -231,20 +231,20 @@ const inputs = {
         
         const subnetworks = await un.getSubnetworks();
         if (subnetworks.features.length === 0) {
-            console.log("No dirty subnetworks found.")
+            logger.info("No dirty subnetworks found.")
             return;
         }
         const subs = subnetworks.features.map(a => a.attributes)
         console.table(subs)
         const rowCount = subs.length;
-        console.log (`${numberWithCommas(rowCount)} rows returned.`)
+        logger.info (`${numberWithCommas(rowCount)} rows returned.`)
     },
     "^topology$": async () => {  
         const moments = ["initialEnableTopology","fullValidateTopology","partialValidateTopology","enableTopology","disableTopology","definitionModification","updateIsConnected"]      
         const networkMoments = await un.queryMoment(moments)
        // networkMoments.forEach (m => momentsText += `\n${m.moment} : ${m.time === 0 ? "N/A": new Date(m.time*1000)} ${m.duration === 0 ? "" : ` Duration: ${Math.round(m.duration/1000)}s `} `)
        // networkMoments.forEach (m => momentsText += `\n${m.moment} : ${m.time === 0 ? "N/A": new Date(m.time*1000)} ${m.duration === 0 ? "" : ` Duration: ${Math.round(m.duration/1000)}s `} `)
-      //  console.log('\x1b[36m%s\x1b[0m', 'I am cyan');  //cyan
+      //  logger.info('\x1b[36m%s\x1b[0m', 'I am cyan');  //cyan
         const topoMoments = networkMoments.networkMoments.map(m => {
             const t = m.time === 0 ? "N/A": new Date(m.time*1000)
             const d = m.duration === 0 ? "N/A" : numberWithCommas(Math.round(m.duration)) + " ms"
@@ -260,7 +260,7 @@ const inputs = {
         console.table(topoMoments) 
     },
     "^topology --enable$": async () => {
-        console.log("Enabling topology ...");
+        logger.info("Enabling topology ...");
         const fromDate = new Date();
         const result = await un.enableTopology()
         const toDate = new Date();
@@ -270,7 +270,7 @@ const inputs = {
     },
     "^topology --disable$": async () => {
         const fromDate = new Date();
-        console.log("Disabling topology ...");
+        logger.info("Disabling topology ...");
         const result = await un.disableTopology()
         const toDate = new Date();
         const timeEnable = toDate.getTime() - fromDate.getTime();
@@ -279,25 +279,25 @@ const inputs = {
     },
     "^evaluate$": async () => {
         const fromDate = new Date();
-        console.log("Building Evaluation Blocks ...");
+        logger.info("Building Evaluation Blocks ...");
         //return evaluation blocks for layer 5
         const blocks = await buildEvaluationBlocks(5);
 
-        console.log("Evaluating Attribute Rules ...");
+        logger.info("Evaluating Attribute Rules ...");
         //blocks.forEach(b => un.evaluate (null, b, ["validationRules", "calculationRules"], async = false, gdbVersion = "sde.DEFAULT"))
-        //Object.keys(blocks).forEach(k => console.log(blocks[k]))
+        //Object.keys(blocks).forEach(k => logger.info(blocks[k]))
         const promises = []
         Object.keys(blocks).forEach(k => promises.push(un.evaluate (null, blocks[k], ["validationRules", "calculationRules"] )))
         
-        console.log("done sending all requests.. now waiting for response ")
+        logger.info("done sending all requests.. now waiting for response ")
         
-        Promise.all(promises).then(a=>console.log("done")).catch(a=>console.log("failed" + JSON.stringify(a)))
+        Promise.all(promises).then(a=>logger.info("done")).catch(a=>logger.info("failed" + JSON.stringify(a)))
 
         const result = {}
         const toDate = new Date();
         const timeEnable = toDate.getTime() - fromDate.getTime();
         result.duration =  numberWithCommas(Math.round(timeEnable)) + " ms"
-        console.log(result)
+        logger.info(result)
     },
 
     //partition so that we can run and commit incrementally.. 
@@ -305,7 +305,7 @@ const inputs = {
     //timeouts
     //in case failure you don't lose everything
     "^topology --validate -fn$": async () => {
-        console.log("Validating Network topology ...");
+        logger.info("Validating Network topology ...");
 
         const fullExtent = un.featureServiceJson.fullExtent;
         /*
@@ -343,7 +343,7 @@ const inputs = {
             const timeEnable = toDate.getTime() - fromDate.getTime();
             const duration =  numberWithCommas(Math.round(timeEnable)) + " ms"
             console.clear()
-            console.log("Validating extent " + e.xmin)
+            logger.info("Validating extent " + e.xmin)
             console.table({duration}) 
 
         })
@@ -352,7 +352,7 @@ const inputs = {
     },
 
     "^topology --validate$": async () => {
-        console.log("Validating Network topology ...");
+        logger.info("Validating Network topology ...");
         const fromDate = new Date();
         const result = await un.validateNetworkTopology()
         const toDate = new Date();
@@ -363,35 +363,35 @@ const inputs = {
     "^subnetworks --dirty$": async () => {        
         const subnetworks = await un.getSubnetworks("isdirty=1");
         if (subnetworks.features.length === 0) {
-            console.log("No dirty subnetworks found.")
+            logger.info("No dirty subnetworks found.")
             return;
         }
             
         const subs = subnetworks.features.map(a => a.attributes)
         console.table(subs)
         const rowCount = subs.length;
-        console.log (`${numberWithCommas(rowCount)} rows returned.`)
+        logger.info (`${numberWithCommas(rowCount)} rows returned.`)
     },
     "^subnetworks --deleted$": async () => {        
         const subnetworks = await un.getSubnetworks("isdirty=1 and isdeleted=1");
         if (subnetworks.features.length === 0) {
-            console.log("No dirty and deleted subnetworks found.")
+            logger.info("No dirty and deleted subnetworks found.")
             return;
         }
             
         const subs = subnetworks.features.map(a => a.attributes)
         console.table(subs)
         const rowCount = subs.length;
-        console.log (`${numberWithCommas(rowCount)} rows returned.`)
+        logger.info (`${numberWithCommas(rowCount)} rows returned.`)
     },
 
     "^update subnetworks --deleted$" : async () => {
-        console.log("Querying all subnetworks that are dirty and deleted.");
+        logger.info("Querying all subnetworks that are dirty and deleted.");
         let subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty=1 and isdeleted=1","domainnetworkname,tiername,subnetworkname");
-        console.log(`Discovered ${subnetworks.features.length} dirty deleted subnetworks.`);
+        logger.info(`Discovered ${subnetworks.features.length} dirty deleted subnetworks.`);
         for (let i = 0;  i < subnetworks.features.length; i++) {
             const f = subnetworks.features[i]
-            console.log("Updating Subnetwork " + v(f.attributes,"subnetworkName"));
+            logger.info("Updating Subnetwork " + v(f.attributes,"subnetworkName"));
             
             const fromDate = new Date();
               
@@ -404,7 +404,7 @@ const inputs = {
             subnetworkResult.duration =  numberWithCommas(Math.round(timeEnable)) + " ms"
             
 
-            console.log(`Result ${JSON.stringify(subnetworkResult)}`)
+            logger.info(`Result ${JSON.stringify(subnetworkResult)}`)
         }
     },
 
@@ -422,27 +422,28 @@ const inputs = {
             if (failedSubnetworks.length > 0 )
                 failedSubWhereClause = " AND SUBNETWORKNAME NOT IN (" + failedSubnetworks.join(",") + ")"
 
-            console.log("Querying all subnetworks that are dirty.");
+            logger.info("Querying all subnetworks that are dirty.");
             subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty=1 " + failedSubWhereClause, `domainnetworkname  ${sort},tiername ${sort},subnetworkname ${sort}`);
-            console.log(`Discovered ${subnetworks.features.length} dirty subnetworks.`);
+            logger.info(`Discovered ${subnetworks.features.length} dirty subnetworks.`);
 
             for (let i = 0;  i < subnetworks.features.length; i++) {
                 const f = subnetworks.features[i]
                 const subnetworkName = v(f.attributes,"subnetworkName")
-                console.log("Updating Subnetwork " + subnetworkName);
+                logger.info("Updating Subnetwork " + subnetworkName);
                 
                 const fromDate = new Date();
                  
                 const subnetworkResult = await un.updateSubnetworks(v(f.attributes,"domainNetworkName"), v(f.attributes,"tierName"), v(f.attributes,"subnetworkName"),false);
                 //check if we have processed this subnetwork (maybe be an error)
-                if (subnetworkResult.success == false)
+                const tier = un.getTier(v(f.attributes,"domainNetworkName"), v(f.attributes,"tierName"))
+                if (subnetworkResult.success == false || tier.manageSubnetwork?.propertySetItems?.includes("IsDirty"))
                     failedSubnetworks.push("'" + subnetworkName + "'")
 
                 const toDate = new Date();
                 const timeEnable = toDate.getTime() - fromDate.getTime();
                 subnetworkResult.duration =  numberWithCommas(Math.round(timeEnable)) + " ms"
     
-                console.log(`Result ${JSON.stringify(subnetworkResult)}`)
+                logger.info(`Result ${JSON.stringify(subnetworkResult)}`)
             }
 
         } 
@@ -450,14 +451,14 @@ const inputs = {
         
     },
     "^update subnetworks --all --async$" : async () => {
-        console.log("Querying all subnetworks that are dirty.");
+        logger.info("Querying all subnetworks that are dirty.");
         let subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty=1", "domainnetworkname,tiername,subnetworkname");
-        console.log(`Discovered ${subnetworks.features.length} dirty subnetworks.`);
+        logger.info(`Discovered ${subnetworks.features.length} dirty subnetworks.`);
         for (let i = 0;  i < subnetworks.features.length; i++) {
             const f = subnetworks.features[i]
-            console.log("Sending job for " + v(f.attributes,"subnetworkName"));
+            logger.info("Sending job for " + v(f.attributes,"subnetworkName"));
             const subnetworkResult = await un.updateSubnetworks(v(f.attributes,"domainNetworkName"), v(f.attributes,"tierName"), v(f.attributes,"subnetworkName"),true);
-            console.log(`Result from submitting job ${JSON.stringify(subnetworkResult)}`)
+            logger.info(`Result from submitting job ${JSON.stringify(subnetworkResult)}`)
         }
     },
    "^export subnetworks --all --folder .*$|^export subnetworks --all$" : async input => {
@@ -473,13 +474,13 @@ const inputs = {
  
         do {
 
-            console.log("Querying all subnetworks that are clean.");
+            logger.info("Querying all subnetworks that are clean.");
             subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty=0","domainnetworkname,tiername,subnetworkname");
-            console.log(`Discovered ${subnetworks.features.length} subnetworks that can be exported.`);
+            logger.info(`Discovered ${subnetworks.features.length} subnetworks that can be exported.`);
             for (let i = 0;  i < subnetworks.features.length; i++) {
                 const f = subnetworks.features[i]
                 const subnetworkName = v(f.attributes,"subnetworkName")
-                console.log("Exporting subnetworks " + v(f.attributes,"subnetworkName"));
+                logger.info("Exporting subnetworks " + v(f.attributes,"subnetworkName"));
                 
                 const fromDate = new Date();
                 
@@ -494,7 +495,7 @@ const inputs = {
                 //if undefined exit
                 if (!subnetworkResult.url)
                 {
-                    console.log("Export subnetwork failed " + JSON.stringify(subnetworkResult))
+                    logger.info("Export subnetwork failed " + JSON.stringify(subnetworkResult))
                     continue;
                 }
     
@@ -507,7 +508,7 @@ const inputs = {
                 fs.writeFileSync(`${inputDir}/${subnetworkName}.json`, jsonExport)            
                
     
-                console.log(`Result ${JSON.stringify(subnetworkResult)} written to file ${process.cwd()}/${inputDir}/${subnetworkName}.json`)
+                logger.info(`Result ${JSON.stringify(subnetworkResult)} written to file ${process.cwd()}/${inputDir}/${subnetworkName}.json`)
     
             }
         }
@@ -527,20 +528,20 @@ const inputs = {
         if (!fs.existsSync(inputDir))  fs.mkdirSync(inputDir)
 
 
-        console.log("Querying all subnetworks that are clean and not exported.");
+        logger.info("Querying all subnetworks that are clean and not exported.");
         let subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty = 0 and (LASTACKEXPORTSUBNETWORK is null or LASTACKEXPORTSUBNETWORK < LASTUPDATESUBNETWORK)","domainnetworkname,tiername,subnetworkname");
-        console.log(`Discovered ${subnetworks.features.length} subnetworks that can be exported.`);
+        logger.info(`Discovered ${subnetworks.features.length} subnetworks that can be exported.`);
         for (let i = 0;  i < subnetworks.features.length; i++) {
             const f = subnetworks.features[i]
             const subnetworkName = v(f.attributes,"subnetworkName")
-            console.log(`Exporting subnetwork ${subnetworkName}` );
+            logger.info(`Exporting subnetwork ${subnetworkName}` );
             const subnetworkResult = await un.exportSubnetworks(v(f.attributes,"domainNetworkName"), v(f.attributes,"tierName"), v(f.attributes,"subnetworkName"),false);
             //fetch the json and write it to disk 
             const subContent = await fetch(subnetworkResult.url);
             const jsonExport = await subContent.text();
             fs.writeFileSync(`${inputDir}/${subnetworkName}.json`, JSON.stringify(jsonExport))            
 
-            console.log(`Result ${JSON.stringify(subnetworkResult)} written to file ${process.cwd()}/${inputDir}/${subnetworkName}.json`)
+            logger.info(`Result ${JSON.stringify(subnetworkResult)} written to file ${process.cwd()}/${inputDir}/${subnetworkName}.json`)
         }
 
  
@@ -550,7 +551,7 @@ const inputs = {
     "^ia$": async input => {
 
         const result = await un.returnInvalidAssociations();
-        console.log("Invalid Associations " + JSON.stringify(result))
+        logger.info("Invalid Associations " + JSON.stringify(result))
     },
     "^connect --service": async input =>{
 
@@ -573,10 +574,10 @@ const inputs = {
         if (inputParam != null && inputParam.length > 0)
             subnetworkName = inputParam[0].replace("--subnetwork ", "")
 
-        console.log(`Tracing subnetwork ${subnetworkName}`);
+        logger.info(`Tracing subnetwork ${subnetworkName}`);
         const result = await un.subnetworkTraceSimple(subnetworkName)
         if (result == null) {
-            console.log(`Subnetwork ${subnetworkName} doesn't exist`);
+            logger.info(`Subnetwork ${subnetworkName} doesn't exist`);
             return null;
         }
         const toDate = new Date();
@@ -598,19 +599,19 @@ const inputs = {
         if (!fs.existsSync(inputDir))  fs.mkdirSync(inputDir)
 
 
-        console.log("Querying all subnetworks that are clean and deleted.");
+        logger.info("Querying all subnetworks that are clean and deleted.");
         let subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty = 0 and isdeleted=1");
-        console.log(`Discovered ${subnetworks.features.length} subnetworks that can be exported.`);
+        logger.info(`Discovered ${subnetworks.features.length} subnetworks that can be exported.`);
         for (let i = 0;  i < subnetworks.features.length; i++) {
             const f = subnetworks.features[i]
             const subnetworkName = v(f.attributes,"subnetworkName")
-            console.log(`Exporting subnetwork ${subnetworkName}` );
+            logger.info(`Exporting subnetwork ${subnetworkName}` );
             const subnetworkResult = await un.exportSubnetworks(v(f.attributes,"domainNetworkName"), v(f.attributes,"tierName"), v(f.attributes,"subnetworkName"),false);
             
             //if undefined exit
             if (!subnetworkResult.url)
             {
-                console.log("Export subnetwork failed " + JSON.stringify(subnetworkResult))
+                logger.info("Export subnetwork failed " + JSON.stringify(subnetworkResult))
                 continue;
             }
 
@@ -619,7 +620,7 @@ const inputs = {
             const jsonExport = await subContent.text();
             fs.writeFileSync(`${inputDir}/${subnetworkName}.json`, JSON.stringify(jsonExport))            
 
-            console.log(`Result ${JSON.stringify(subnetworkResult)} written to file ${process.cwd()}/${inputDir}/${subnetworkName}.json`)
+            logger.info(`Result ${JSON.stringify(subnetworkResult)} written to file ${process.cwd()}/${inputDir}/${subnetworkName}.json`)
         }
 
  
@@ -628,7 +629,7 @@ const inputs = {
     "^cwd$" : async input => {
           
 
-        console.log(process.cwd())
+        logger.info(process.cwd())
  
      },
  
@@ -640,14 +641,14 @@ const inputs = {
          //create directory if doesn't exists
          if (!fs.existsSync(inputDir))  fs.mkdirSync(inputDir)
          fs.writeFileSync(`${inputDir}/${Math.random()}`, Math.random())
-         console.log(inputDir)
+         logger.info(inputDir)
    
   
       },
 
 
     "^count$": async () => {
-        console.log("Querying all layers....")
+        logger.info("Querying all layers....")
         const layerProperties = [
             "id",
             "name",
@@ -681,12 +682,12 @@ const inputs = {
  
        
         console.table(layerCount)
-        console.log(`Total number of rows in all layers : ${numberWithCommas(totalRows)} .`)
+        logger.info(`Total number of rows in all layers : ${numberWithCommas(totalRows)} .`)
     },
 
     
     "^count --system$": async () => {
-        console.log("Querying all system layers....")
+        logger.info("Querying all system layers....")
         
         const systemLayers = un.getSystemLayers();
         let totalRows = 0;
@@ -709,7 +710,7 @@ const inputs = {
         } 
         
         console.table(layerCount)
-        console.log(`Total number of rows in all system layers : ${numberWithCommas(totalRows)} .`)
+        logger.info(`Total number of rows in all system layers : ${numberWithCommas(totalRows)} .`)
 
     },
 
@@ -724,7 +725,7 @@ const inputs = {
             mins = inputParam[0].replace("--age ", "")
 
 
-       console.log(`Querying attribute rules logs for ${parameters.service} for the last ${mins} minutes ...`)
+       logger.info(`Querying attribute rules logs for ${parameters.service} for the last ${mins} minutes ...`)
 
        const startTime = Date.now() - mins*60*1000
        const endTime = Date.now();
@@ -774,7 +775,7 @@ const inputs = {
         if (inputParam != null && inputParam.length > 0)
             mins = inputParam[0].replace("--age ", "")
  
-        console.log(`Querying trace logs for ${parameters.service} for the last ${mins} minutes ...`)
+        logger.info(`Querying trace logs for ${parameters.service} for the last ${mins} minutes ...`)
         const startTime = Date.now() - mins*60*1000
         const endTime = Date.now();
         let result= await adminLog.query([102002], [parameters.service+ ".MapServer"], topLogCount, startTime ,endTime , "VERBOSE")
@@ -815,7 +816,7 @@ const inputs = {
             delete newMessage.message
          
             console.table([newMessage])
-            console.log(m.message)  
+            logger.info(m.message)  
         })
          
     },
@@ -833,7 +834,7 @@ const inputs = {
             mins = inputParam[0].replace("--age ", "")
  
             
-  console.log(`Querying validate logs for ${parameters.service} for the last ${mins} minutes ...`)
+  logger.info(`Querying validate logs for ${parameters.service} for the last ${mins} minutes ...`)
   const startTime = Date.now() - mins*60*1000
   const endTime = Date.now();
   let result= await adminLog.query([102003], [parameters.service+ ".MapServer"], topLogCount, startTime ,endTime , "VERBOSE")
@@ -898,7 +899,7 @@ const inputs = {
             delete newMessage.message
          
             console.table([newMessage])
-            console.log(m.message)  
+            logger.info(m.message)  
         })
          
 
@@ -917,7 +918,7 @@ const inputs = {
         if (inputParam != null && inputParam.length > 0)
             mins = inputParam[0].replace("--age ", "")
  
-        console.log(`Querying subnetwork logs for ${parameters.service} for the last ${mins} minutes ...`)
+        logger.info(`Querying subnetwork logs for ${parameters.service} for the last ${mins} minutes ...`)
         const startTime = Date.now() - mins*60*1000
         const endTime = Date.now();
         let result= await adminLog.query([102003], [parameters.service+ ".MapServer"], topLogCount, startTime ,endTime , "VERBOSE")
@@ -982,7 +983,7 @@ const inputs = {
             delete newMessage.message
          
             console.table([newMessage])
-            console.log(m.message)  
+            logger.info(m.message)  
         })
          
          
@@ -999,7 +1000,7 @@ const inputs = {
         if (inputParam != null && inputParam.length > 0)
             mins = inputParam[0].replace("--age ", "")
  
-        console.log(`Querying cursor sql logs for ${parameters.service} for the last ${mins} minutes ...`)
+        logger.info(`Querying cursor sql logs for ${parameters.service} for the last ${mins} minutes ...`)
         const startTime = Date.now() - mins*60*1000
         const endTime = Date.now();
         let result= await adminLog.query([102023], [parameters.service+ ".MapServer"], topLogCount, startTime ,endTime , "DEBUG")
@@ -1015,7 +1016,7 @@ const inputs = {
   
             allMessages = allMessages.concat(jsonRes.logMessages.filter(m => m.message.indexOf("EndCursor;") > -1))
         }
-      console.log ("Filtering messages...")
+      logger.info ("Filtering messages...")
       
       allMessages = allMessages
             .map( m=> {
@@ -1029,21 +1030,21 @@ const inputs = {
             .slice(0, 10) ;//first 10
     
      
-        console.log("-----Top 10 SQL----")
+        logger.info("-----Top 10 SQL----")
         let i =0;
         allMessages= allMessages.forEach(m => 
             {
              
                 const x = m.message.split(";")
                 x.shift()
-                console.log(`id: ${i++}`)
-                console.log(`\tAt: ${new Date(m.time)} (${m.time})`)
-                console.log(`\tUser: ${m.user}`)
-                console.log(`\tTotal Time: ${numberWithCommas(Math.round(m.elapsed*1000))} ms (Total time the cursor was opened)`)
-                console.log(`\tQuery Time: ${numberWithCommas(m.totalExecutionElapsed)} ms (includes search + data access nextRow)`)
-                console.log(`\tQuery:`)
-                x.forEach(a => console.log(`\t${a}`))
-                console.log(`\n`)
+                logger.info(`id: ${i++}`)
+                logger.info(`\tAt: ${new Date(m.time)} (${m.time})`)
+                logger.info(`\tUser: ${m.user}`)
+                logger.info(`\tTotal Time: ${numberWithCommas(Math.round(m.elapsed*1000))} ms (Total time the cursor was opened)`)
+                logger.info(`\tQuery Time: ${numberWithCommas(m.totalExecutionElapsed)} ms (includes search + data access nextRow)`)
+                logger.info(`\tQuery:`)
+                x.forEach(a => logger.info(`\t${a}`))
+                logger.info(`\n`)
  
         })
  
@@ -1155,11 +1156,11 @@ const inputs = {
         console.table(rules)
 
         const totalARExecution = rules.reduce( (prev, cur) =>  prev + cur["Total Cost (ms)"], 0)
-        console.log(`Total time spend executing attribute rules (${Math.round(totalARExecution)} ms) (${Math.round(totalARExecution/1000)} s) (${Math.round(totalARExecution/(1000*60))} m)`)
+        logger.info(`Total time spend executing attribute rules (${Math.round(totalARExecution)} ms) (${Math.round(totalARExecution/1000)} s) (${Math.round(totalARExecution/(1000*60))} m)`)
          
     },
 
-    "^version$": () => console.log(version),
+    "^version$": () => logger.info(version),
     "^clear$|^cls$": () => console.clear(),
     "^quit$": () => {
         if (rl) rl.close();
@@ -1184,7 +1185,7 @@ const inputs = {
    
     while(true) {
         const result = await un.query(layerId, `1=1`, undefined, undefined, ["globalId"], "sde.DEFAULT", offset, recordCount)
-        console.log(`Processing ${recordCount} rows`)
+        logger.info(`Processing ${recordCount} rows`)
         //for each assocaition check if its valid
         for (let i = 0 ; i < result.features.length; i++){
             const row = result.features[i]
@@ -1299,7 +1300,7 @@ function numberWithCommas(x) {
 /*
 rl.question("What is your name ? ", function(name) {
     rl.question("Where do you live ? ", function(country) {
-        console.log(`${name}, is a citizen of ${country}`);
+        logger.info(`${name}, is a citizen of ${country}`);
         rl.close();
     });
 });
@@ -1312,7 +1313,7 @@ function setupReadLine() {
     });
 
     rl.on("close", function() {
-        console.log("\nbye");
+        logger.info("\nbye");
         process.exit(0);
     });
 
@@ -1334,7 +1335,7 @@ export async function run (){
         console.error(`Minimum required node js is ${minVer} your version is ${process.version}`)
         process.exit(0);
     }
-    console.log(`uncli ${version} is experimental command line utility for basic utility network services. Use as is.`)
+    logger.info(`uncli ${version} is experimental command line utility for basic utility network services. Use as is.`)
     parameters = await parseInput( )
     //set certificate verification 
     const verifyCert = parameters["verify"] === 'true' ? 1 : 0;
