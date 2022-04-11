@@ -9,16 +9,32 @@
 <body>
 
     <table>
+        <tr>
+            <td>
+            Admin User
+        </td>
+            <td colspan =3><input type = 'text' id = 'txtAdmin' value = 'admin'></td>
+        </tr>
+        <tr>
+        <td>
+            Admin Password
+        </td>
+            <td colspan =3><input type = 'password' id = 'txtPassword' value = ''></td>
+        </tr>
+        <tr>
+            
+            <td colspan =5><button id = 'btnLogin'>Login</button></td>
+            </tr>
         <tr><td>Service</td>
             <td colspan =3 ><select id ='cmbService'>
-                <option>(All Services)</option>
+                
             </select>
             </td>
         </tr>
          
     <tr> 
         <td >Age</td>
-        <td colspan =3><input type ='text' id = 'txtAge' value = '30' style="width:30px"> minutes</td>
+        <td colspan =3><input type ='text' id = 'txtAge' value = '10' style="width:30px"> minutes</td>
     </tr>
     <tr colspan =4>
         <td><button id = 'btnTraceLogs'>Trace Logs</button></td>
@@ -41,12 +57,13 @@
         import { AdminLog } from "./adminlog.mjs"
         import  logger  from "./logger.mjs"
  
-    
-    const parameters = {
+     
+
+    let parameters = {
         "user": "unadmin",
-        "password": "unadmin.109",
+        "password": "",
         "portal": "https://utilitynetwork.esri.com/portal",
-        "service": "RedTrolley_SQLServer",
+        "service": "",
         "referer": "https://utilitynetwork.esri.com/log"
     }
  
@@ -55,10 +72,26 @@
     let adminLog = null;
     let cmbService 
    let token;
+    const btnLogin = document.getElementById("btnLogin")
+    const txtAdmin = document.getElementById("txtAdmin");
+    const txtPassword = document.getElementById("txtPassword")
+
+    btnLogin.addEventListener("click", () => init())
     async function init() {
-        
+        try {
+
+
+        parameters.user =   txtAdmin.value;
+        parameters.password = txtPassword.value;
+        parameters.referer = window.location.href;
+           
         cmbService = document.getElementById("cmbService")
-    
+        while (cmbService.firstChild) cmbService.removeChild(cmbService.firstChild)
+        
+        const opt = document.createElement("option")
+        opt.textContent = "(All Services)"
+        cmbService.appendChild (opt)
+
         token = await getToken(parameters);
         const services = await portal.services()
         const featureServices = services.services.filter(s => s.type == "FeatureServer")
@@ -67,6 +100,20 @@
             o.text = s.name;
             cmbService.appendChild(o);
         })
+        
+
+        
+        document.getElementById("btnTraceLogs").disabled = false 
+        document.getElementById("btnValidateLogs").disabled = false 
+        document.getElementById("btnUpdateSubnetworkLogs").disabled = false 
+        document.getElementById("btnAR").disabled = false 
+        document.getElementById("btnSQLLogs").disabled = false 
+  
+
+        }
+        catch(ex){
+            alert(`Failed to login to ${parameters.portal} check the user/password and make sure its an admin`)
+        }
     }
 
 
@@ -525,23 +572,27 @@ function numberWithCommas(x) {
    return x.toLocaleString()
 }
 
-    init();
+    //init();
 
     const btnTraceLogs = document.getElementById("btnTraceLogs");
     btnTraceLogs.addEventListener("click", e => loadTraceLogs()) 
+    btnTraceLogs.disabled = true
 
     const btnValidateLogs = document.getElementById("btnValidateLogs");
     btnValidateLogs.addEventListener("click", e => loadValidateLogs())
+    btnValidateLogs.disabled = true
 
     const btnUpdateSubnetworkLogs = document.getElementById("btnUpdateSubnetworkLogs");
     btnUpdateSubnetworkLogs.addEventListener("click", e => loadUpdateSubnetworkLogs())
- 
+    btnUpdateSubnetworkLogs.disabled = true
+
     const btnSQLLogs = document.getElementById("btnSQLLogs");
     btnSQLLogs.addEventListener("click", e => loadSQLLogs())
- 
+    btnSQLLogs.disabled = true
+
     const btnAR = document.getElementById("btnAR");
     btnAR.addEventListener("click", e => loadAttributeRules())
- 
+    btnAR.disabled = true
 
    function filterMessages (allMessages) {
         const txtFilter = document.getElementById("txtFilter")
