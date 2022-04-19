@@ -28,25 +28,28 @@ export function makeRequest (opts) {
 
         let f;
         try {
+ 
             const nodeFetch = await import ("node-fetch");
             f = nodeFetch.default;
         }
         catch(ex) {
             f = fetch;
         }
- 
-
+         
+        let jsonRes
+        
        const result = await f(opts.url, {
            "method" : opts.method,
             "headers":  headers,
             "body": params
        });
 
-       const jsonRes  = await result.json();
-      
+        jsonRes  = await result.json();
+        
         if (typeof jsonRes !== "object") 
             jsonRes = JSON.parse(jsonRes);
 
+ 
         resolve(jsonRes);
     
         }

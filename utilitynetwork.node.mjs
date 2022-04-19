@@ -21,12 +21,14 @@ export class UtilityNetwork {
             this.featureServiceUrl = featureServiceUrl;
             this.token = token;         
             this.gdbVersion = gdbVersion;
+            this.sourceMapping = {}
         }
 
       ///first function one should call after creating an instance of a utility network
        load ()
         {
             let thisObj = this;
+            
             return new Promise (function (resolve, reject)
             {
                 //run async mode
@@ -68,7 +70,30 @@ export class UtilityNetwork {
             
                     thisObj.dataElement = undataElement.layerDataElements[0].dataElement;
                     thisObj.layerDefinition = unLayerDef
-                    thisObj.subnetLineLayerId = thisObj.getSubnetLineLayerId();                    
+                    thisObj.subnetLineLayerId = thisObj.getSubnetLineLayerId();     
+                    
+                    //build out source mapping hash
+                    let domainNetworks = thisObj.dataElement.domainNetworks;
+                    let layerObj = undefined;
+
+                    for (let i = 0; i < domainNetworks.length; i ++)
+                    {
+                        let domainNetwork = domainNetworks[i];
+                        for (let j = 0; j < domainNetwork.junctionSources.length; j ++)
+                            {  
+                                layerObj =  {type: domainNetwork.junctionSources[j].shapeType, layerId: domainNetwork.junctionSources[j].layerId}
+                                layerObj.type = layerObj.type.replace("esriGeometry", "").toLowerCase();
+                                thisObj.sourceMapping["s" + domainNetwork.junctionSources[j].sourceId] = layerObj
+                            }
+
+                        for (let j = 0; j < domainNetwork.edgeSources.length; j ++)
+                             { 
+                                layerObj = {type: domainNetwork.edgeSources[j].shapeType, layerId: domainNetwork.edgeSources[j].layerId} 
+                                layerObj.type = layerObj.type.replace("esriGeometry", "").toLowerCase();
+                                thisObj.sourceMapping["s" + domainNetwork.edgeSources[j].sourceId] = layerObj
+                            }
+                    }
+  
                     resolve(thisObj);
                 }
                 else
@@ -333,16 +358,49 @@ export class UtilityNetwork {
             if (objectids != undefined) 
             queryJson.objectIds = objectids;
             queryJson.layerId = layerId
-            return new Promise((resolve, reject) => {
+            return new Promise(async(resolve, reject) => {
 
-                makeRequest({method: 'POST', params: queryJson, url: this.featureServiceUrl + "/" + layerId + "/query"}).then(rowsJson=> {                  
-                    rowsJson.obj = obj;
-                    resolve(rowsJson);
-                }).catch(rej => reject("failed to query"));
+
                 
+                let rowsJson;
+                let allRowsJson;
+                let recordOffset = 0;
+
+                try {
+
+                    do {
+                        queryJson.resultOffset = recordOffset;
+                        rowsJson  = await makeRequest({method: 'POST', params: queryJson, url: this.featureServiceUrl + "/" + layerId + "/query"}) ;                
+                        recordOffset = recordOffset + resultRecordCount + 1;
+                        rowsJson.obj = obj;
+
+                        if (!allRowsJson)
+                          allRowsJson = rowsJson
+                        else
+                          allRowsJson?.features.push(...rowsJson?.features)
+                        //page the result until done
+                    }
+                    while(rowsJson?.exceededTransferLimit == true)
+
+                    resolve(allRowsJson);
+                }
+                catch(ex){
+                    reject("failed to query" + JSON.stringify(ex))
+                }
+
+                
+           
+
             });
                 
-              
+
+            
+       // }
+       // while(jsonRes?.exceededTransferLimit == true)
+      // if (!allJsonRes)
+     //  allJsonRes = jsonRes
+ // else
+      // allJsonRes?.features.push(...jsonRes?.features)
         }
         //get the terminal configuration using the id
         getTerminalConfiguration(terminalConfigurationId)
@@ -538,8 +596,10 @@ export class UtilityNetwork {
         //get layer id from Source Id used to map sourceid to layer id
         getLayerIdfromSourceId(sourceId)
         { 
+ 
+            return this.sourceMapping["s" + sourceId]
+            /*
             let domainNetworks = this.dataElement.domainNetworks;
-            let layerObj = undefined;
 
             for (let i = 0; i < domainNetworks.length; i ++)
             {
@@ -561,6 +621,7 @@ export class UtilityNetwork {
 
             if (layerObj != undefined)
                 layerObj.type = layerObj.type.replace("esriGeometry", "").toLowerCase();
+            */
 
             return layerObj;
         }
@@ -957,6 +1018,27 @@ export class UtilityNetwork {
  
 
  
+
+        updateIsConnected(async=false) {
+
+            let thisObj = this;  
+            let ar = thisObj.featureServiceUrl.split("/");
+             ar[ar.length-1]="UtilityNetworkServer";
+             let updateisconnectedURL = ar.join("/") + "/updateIsConnected"
+     
+               let payload = {
+                  f: "json",  
+                  token: this.token,  
+                  async: async
+                }
+              let un = this;
+            
+            return makeRequest({method:'POST', params: payload, url: updateisconnectedURL })
+        
+ 
+
+        }
+
 
         updateSubnetworks(domainNetworkName, tierName, subnetworkName, async=false) {
 

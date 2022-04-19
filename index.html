@@ -451,8 +451,6 @@ async function loadSQLLogs () {
         let i =0;
         
         const header = document.createElement("tr");
-        const thead = docuemnt.createElement("thead")
-        thead.appendChild(header)
         const cService = document.createElement("th");
         cService.textContent = "Source"
         const cTime = document.createElement("th");
@@ -693,21 +691,7 @@ function numberWithCommas(x) {
     }
 
 
-    
-    function sortTable(table, col, reverse) {
-    var tb = table.tBodies[0], // use `<tbody>` to ignore `<thead>` and `<tfoot>` rows
-        tr = Array.prototype.slice.call(tb.rows, 0), // put rows into array
-        i;
-    reverse = -((+reverse) || -1);
-    tr = tr.sort(function (a, b) { // sort rows
-        return reverse // `-1 *` if want opposite order
-            * (a.cells[col].textContent.trim() // using `.textContent.trim()` for test
-                .localeCompare(b.cells[col].textContent.trim())
-               );
-    });
-    for(i = 0; i < tr.length; ++i) tb.appendChild(tr[i]); // append each row in order
-}
- 
+     
 
     </script>
 </body>

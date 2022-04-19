@@ -7,7 +7,7 @@ import { AdminLog } from "./adminlog.mjs"
 import  logger  from "./logger.mjs"
 import  fetch  from "node-fetch"
 //update version
-let version = "0.0.74";
+let version = "0.0.75";
 const GENERATE_TOKEN_TIME_MIN = 30;
 
 let rl = null;
@@ -175,6 +175,8 @@ const inputs = {
             "export subnetworks --all [--folder]": "Export all subnetworks with ACK --folder where exported files are saved",
             "export subnetworks --new [--folder]": "Export all subnetworks with ACK that haven't been exported --folder where exported files are saved",
             "export subnetworks --deleted": "Export all subnetworks with ACK that are deleted ",
+            "updateisconnected": "Run update is connected ",
+            
             "count": "Lists the number of rows in all feature layers.",
             "count --system": "Lists the number of rows in system layers.",
             "connect --service": "Connects to the another service",
@@ -272,6 +274,16 @@ const inputs = {
         const fromDate = new Date();
         logger.info("Disabling topology ...");
         const result = await un.disableTopology()
+        const toDate = new Date();
+        const timeEnable = toDate.getTime() - fromDate.getTime();
+        result.duration =  numberWithCommas(Math.round(timeEnable)) + " ms"
+        console.table(result) 
+    },
+    
+    "^updateisconnected$": async () => {
+        const fromDate = new Date();
+        logger.info("Updating is connected ...");
+        const result = await un.updateIsConnected()
         const toDate = new Date();
         const timeEnable = toDate.getTime() - fromDate.getTime();
         result.duration =  numberWithCommas(Math.round(timeEnable)) + " ms"
@@ -464,6 +476,8 @@ const inputs = {
    "^export subnetworks --all --folder .*$|^export subnetworks --all$" : async input => {
  
         let subnetworks 
+        let sort = "asc";
+        if (input.indexOf("--desc") > 0) sort = "desc"
         //create folder
         const file = input.match(/--folder .*/gm)
         let inputDir = "Exported"
@@ -481,7 +495,7 @@ const inputs = {
                 exportedSubnetworksWhereClause = " AND SUBNETWORKNAME NOT IN (" + exportedSubnetworks.join(",") + ")"
  
             logger.info("Querying all subnetworks that are clean.");
-            subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty=0 " + exportedSubnetworksWhereClause,"domainnetworkname,tiername,subnetworkname");
+            subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty=0 " + exportedSubnetworksWhereClause,`domainnetworkname  ${sort},tiername ${sort},subnetworkname ${sort}`);
             logger.info(`Discovered ${subnetworks.features.length} subnetworks that can be exported.`);
             for (let i = 0;  i < subnetworks.features.length; i++) {
                 const f = subnetworks.features[i]
@@ -572,9 +586,13 @@ const inputs = {
     },
     "^trace --subnetwork": async input => {
         //get subnetwork name
+        try {
 
+             
         const fromDate = new Date();
-       
+        const inputDir= "Exported"
+        let full = true;
+      //  if (input.indexOf("--full") > 0) full = true
 
         const inputParam = input.match(/--subnetwork .*/gm)
         let subnetworkName = null;
@@ -592,8 +610,44 @@ const inputs = {
         const newResult = {}
         newResult.duration =  numberWithCommas(Math.round(timeRun)) + " ms"
         newResult.elementsCount = result.traceResults.elements.length;
-        console.table(newResult) 
+        const traceRes = {}
+        logger.info("Grouping trace results...")
+         result.traceResults.elements.forEach(e => {
+            const layerid = un.getLayerIdfromSourceId(e.networkSourceId).layerId
+            if (!traceRes["l" + layerid])
+                traceRes["l" + layerid] = []
+            traceRes["l" + layerid].push(e.objectId)
+          
+        })
+        console.table(newResult)
 
+        //if the trace is full turn around the pull all features
+        if (full){
+
+            //loop through all layers and query
+            logger.info("Removing duplicates")
+                
+            console.log(traceRes)
+             
+            //send all queries async 
+            const allQueries = []
+            Object.keys(traceRes).forEach (k => {
+                traceRes[k] = [...new Set(traceRes[k])]
+                allQueries.push(un.query(k.replace("l",""), "", k, traceRes[k]))
+            })
+            logger.info(`${Object.keys(traceRes)} queries sent, waiting for response..`)
+            const result = await Promise.all(allQueries)
+            logger.info("All queries returned.")
+            fs.writeFileSync(`${inputDir}/traceout${subnetworkName}.json`, JSON.stringify(result))
+            logger.info(`Result written to file ${inputDir}/traceout${subnetworkName}.json`)
+
+            //logger.info(JSON.stringify(result))
+            
+        }
+    }
+        catch(ex){
+            logger.error(JSON.stringify(ex))
+        }
     },
     "^export subnetworks --deleted$" : async input => {
 
