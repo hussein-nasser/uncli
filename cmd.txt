@@ -1,2 +1,2 @@
-updateisconnected
+topology --validate --fishnet
 exit

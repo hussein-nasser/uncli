@@ -86,7 +86,7 @@ async function regenerateToken(parameters) {
 async function connect(parameters) {
     try{
      //print the parameters
-    logger.info(parameters);
+    logger.info(JSON.stringify(parameters));
     //connect to portal
     
     const token = await getToken(parameters);
@@ -316,10 +316,12 @@ const inputs = {
     //progress
     //timeouts
     //in case failure you don't lose everything
-    "^topology --validate -fn$": async () => {
+    "^topology --validate --fishnet$": async () => {
         logger.info("Validating Network topology ...");
 
-        const fullExtent = un.featureServiceJson.fullExtent;
+        const fullExtent = un.layerDefinition.extent;
+        //console.log(`add_env(${ JSON.stringify(fullExtent)})`)
+
         /*
         fullExtent.xmin = 0;
         fullExtent.xmax = 100;
@@ -328,13 +330,14 @@ const inputs = {
         https://desktop.arcgis.com/en/arcmap/10.3/tools/cartography-toolbox/create-cartographic-partitions.htm
         */
         //fish net
-        const grids = 4;
+        const grids = 5; //divide the grid 5 x 5
         const dx = (fullExtent.xmax - fullExtent.xmin) / grids;
         const dy = (fullExtent.ymax - fullExtent.ymin) / grids;
-        
-        const extents = [];
+         
+        const fishnet = [];
         for (let i =0; i < grids; i ++) {
-            
+            const row = [];
+
             for (let j = 0; j < grids; j++) {
                 const extent = {
                     "xmin": fullExtent.xmin + j*dx,
@@ -343,24 +346,47 @@ const inputs = {
                     "ymax": fullExtent.ymin + i*dy + dy,
                     "spatialReference": fullExtent.spatialReference
                 }
-                extents.push(extent);
+                row.push({"content": " ", "extent": extent});
+ 
             }
+            fishnet.push(row);
         }
          
-        extents.forEach(async e => {
-            const fromDate = new Date(); 
 
-            const result = await un.validateNetworkTopology("sde.DEFAULT", e)
-            const toDate = new Date();
-            const timeEnable = toDate.getTime() - fromDate.getTime();
-            const duration =  numberWithCommas(Math.round(timeEnable)) + " ms"
-            console.clear()
-            logger.info("Validating extent " + e.xmin)
-            console.table({duration}) 
 
-        })
-        
-        
+        for (let i = 0; i < fishnet.length; i ++) {
+
+            for (let j = 0 ; j < fishnet[i].length; j++) {
+                
+                fishnet[i][j].content = '⚙️'
+                const e =  fishnet[i][j].extent
+            
+                    try {
+
+                
+                    const fromDate = new Date(); 
+                    console.log("Validating Extent " + JSON.stringify(e));
+                    printFishnet(fishnet)
+
+                    const result = await un.validateNetworkTopology(  e)
+                    const toDate = new Date();
+                    const timeEnable = toDate.getTime() - fromDate.getTime();
+                    const duration =  numberWithCommas(Math.round(timeEnable)) + " ms"
+                    result.duration = duration
+                    console.table(result) 
+                    //console.log(`add_env(${ JSON.stringify(e)})`)
+                    fishnet[i][j].content = '✔️'
+
+                    }
+                    catch(ex){
+                        console.log(JSON.stringify(ex))
+                    }
+
+        }
+                
+    }
+    console.log("Done")
+
     },
 
     "^topology --validate$": async () => {
@@ -1407,3 +1433,27 @@ export async function run (){
 
 
 
+function printFishnet(fishnet) {
+
+    //y is flipped x is ok
+    //i = 0 that is i = fishnet.length -1
+    for (let i =0; i < fishnet.length ; i++){
+        
+        for (let j = 0; j < fishnet[i].length;j++) 
+            process.stdout.write("+------");
+
+        process.stdout.write("+\n")
+
+        for (let j = 0; j < fishnet[i].length;j++)
+            process.stdout.write(`|   ${fishnet[fishnet.length - 1 - i][j].content}  `);
+ 
+        process.stdout.write("|\n")
+    }
+
+
+    for (let j = 0; j < fishnet.length;j++) 
+        process.stdout.write("+------");
+    
+    process.stdout.write("+\n\n")
+
+}

@@ -44,6 +44,8 @@
         <td><button id = 'btnSQLLogs'>SQL Logs</button></td>
         <td>Message<input id = 'txtFilter' type = 'text'></td>
         <td>User<input id = 'txtUser' type = 'text'></td>
+        <td>Start Time<input id = 'txtStartTime' type = 'text'></td>
+        <td>End Time<input id = 'txtEndTime' type = 'text'></td>
     </tr>
 
     </table>
@@ -129,7 +131,7 @@
 
 
     async function loadTraceLogs () {
-  
+   
         //build table
         const tblResult = document.getElementById("tblResult");
         //clear
@@ -143,9 +145,110 @@
         console.log(`Querying trace logs for ${parameters.service} for the last ${mins} minutes ...`)
             
          //page query the admin log
-         let allMessages = await adminLogQueryWithPaging(mins, parameters.service, [102002], "------ Trace Parameters ----", "VERBOSE")
+       let allTheMessages = await adminLogQueryWithPaging(mins, parameters.service, [102002], "------ Trace Parameters ----", "VERBOSE")
+            
+       let allMessages = filterMessages (allTheMessages).map(m => {
+            const newMessage = Object.assign({}, m);
+            delete newMessage.machine;
+            delete newMessage.type;
+            delete newMessage.code;
+            delete newMessage.requestID;
+            delete newMessage.process;
+            delete newMessage.thread;
+            newMessage.elapsedms = parseInt (parseFloat(newMessage.elapsed) * 1000)
+            newMessage.time = new Date(newMessage.time).toLocaleString()
+            delete newMessage.elapsed
+
+            try{
+                
+                //Total Trace Time (4.745 seconds)
+    
+                let re = /Total Trace Time \([-+]?([0-9]*\.[0-9]+|[0-9]+) seconds\)/;
+                let res = re.exec(m.message)
+                if (res && res.length  > 1)
+                    newMessage.traceTime = parseFloat(res[1])*1000
+        
+                let re1 = /Trace Type: .\w.*/;
+                let res1 = re1.exec(m.message)
+                if (res1 && res1.length  > 0)
+                    newMessage.traceType = res1[0].replace("Trace Type: ","")
  
-         await populateMessages(allMessages)
+            }
+            catch(ex){
+               console.error(ex)
+            }
+ 
+
+            return newMessage;
+        })
+        .sort( (m1,m2) => m2.elapsedms - m1.elapsedms)
+        
+        //clear
+        while(tblResult.firstChild) tblResult.removeChild(tblResult.firstChild)
+
+        const header = document.createElement("tr");
+        const cService = document.createElement("th");
+        cService.textContent = "Source"
+        const cTime = document.createElement("th");
+        cTime.textContent = "Time"
+        const cUser = document.createElement("th");
+        cUser.textContent = "User"
+        const cMethod = document.createElement("th");
+        cMethod.textContent = "Method"
+        const cElapsedMS = document.createElement("th");
+        cElapsedMS.textContent = "Elapsed (ms)"
+        const cTraceType = document.createElement("th");
+        cTraceType.textContent = "Trace Type"
+        const cTraceTime = document.createElement("th");
+        cTraceTime.textContent = "Trace Time"
+        const cLog = document.createElement("th");
+        cLog.textContent = "Full Log"
+        header.appendChild (cService)
+        header.appendChild (cTime)
+        header.appendChild (cUser)
+        header.appendChild (cMethod)
+        header.appendChild (cTraceType)
+        header.appendChild (cTraceTime)
+        header.appendChild (cElapsedMS)
+
+        header.appendChild (cLog) 
+        tblResult.appendChild(header)
+        allMessages.forEach(m => {
+            const logRow = document.createElement("tr");
+            const cService = document.createElement("td");
+            cService.textContent = m.source.replace(".MapServer", "")
+            const cTime = document.createElement("td");
+            cTime.textContent = m.time
+            const cUser = document.createElement("td");
+            cUser.textContent = m.user
+            const cMethod = document.createElement("td");
+            cMethod.textContent = m.methodName
+            const cElapsedMS = document.createElement("td");
+            cElapsedMS.textContent = m.elapsedms
+            const cTraceType = document.createElement("td");
+            cTraceType.textContent = m.traceType
+            const cTraceTime = document.createElement("td");
+            cTraceTime.textContent = m.traceTime
+
+            const cLog = document.createElement("td");
+            cLog.textContent = "..."
+            cLog.fullLog = m.message;
+            cLog.addEventListener("click", e=> {navigator.clipboard.writeText(e.target.fullLog); alert("Copied to clipboard")})
+            logRow.appendChild (cService)
+            logRow.appendChild (cTime)
+            logRow.appendChild (cUser)
+            logRow.appendChild (cMethod)
+            logRow.appendChild (cTraceType)
+            logRow.appendChild (cTraceTime)
+            logRow.appendChild (cElapsedMS)
+
+            logRow.appendChild (cLog) 
+            tblResult.appendChild(logRow)
+        })
+
+
+
+         //await populateMessages(allMessages)
  
          
     }
@@ -208,31 +311,114 @@ async function loadUpdateSubnetworkLogs () {
 
         
         console.log(`Querying subnetwork logs for ${parameters.service} for the last ${mins} minutes ...`)
-        let allMessages = await adminLogQueryWithPaging(mins, parameters.service, [102003], "---- Subnetwork Parameters ----", "VERBOSE")
+        let allTheMessages = await adminLogQueryWithPaging(mins, parameters.service, [102003], "---- Subnetwork Parameters ----", "VERBOSE")
 
+          
         
-        //update subnetwork missing elapsed populate it
-        allMessages = allMessages.map( m => {
-            try{
- 
-            let re = /Total \([-+]?([0-9]*\.[0-9]+|[0-9]+) seconds\)/;
-            let res = re.exec(m.message)
-            if (res && res.length  > 1)
-                m.elapsed = res[1]
+       let allMessages = filterMessages (allTheMessages).map(m => {
+           
+        const newMessage = Object.assign({}, m);
+        try{
+          
+            delete newMessage.machine;
+            delete newMessage.type;
+            delete newMessage.code;
+            delete newMessage.requestID;
+            delete newMessage.process;
+            delete newMessage.thread;
+         
+                
+                let re = /Total \([-+]?([0-9]*\.[0-9]+|[0-9]+) seconds\)/;
+                let res = re.exec(m.message)
+                if (res && res.length  > 0)
+                    newMessage.elapsed = res[1]
 
-            re = /Total update subnetwork time \([-+]?([0-9]*\.[0-9]+|[0-9]+) seconds\)/;
-            res = re.exec(m.message)
-            if (res && res.length  > 1)
-                m.elapsed = res[1]
-            
-            return m;
+                re = /Total update subnetwork time \([-+]?([0-9]*\.[0-9]+|[0-9]+) seconds\)/;
+                res = re.exec(m.message)
+                if (res && res.length  > 0)
+                    newMessage.elapsed = res[1]
+ 
+                    
+                let re1 = /Subnetwork name: .*/;
+                let res1 = re1.exec(m.message)
+                if (res1 && res1.length  > 0)
+                    newMessage.subnetworkName = res1[0].replace("Subnetwork name: ","")
+                    
+         
+                newMessage.elapsedms = parseInt (parseFloat(newMessage.elapsed) * 1000)
+                newMessage.time = new Date(newMessage.time).toLocaleString()
+                delete newMessage.elapsed
+                
+  
             }
             catch(ex){
-                return m;
+                console.error(ex)
             }
-        })
-        await populateMessages(allMessages)
+            finally {
+                return newMessage;
+            }
 
+        })
+        .sort( (m1,m2) => m2.elapsedms - m1.elapsedms)
+        
+        //clear
+        while(tblResult.firstChild) tblResult.removeChild(tblResult.firstChild)
+
+        const header = document.createElement("tr");
+        const cService = document.createElement("th");
+        cService.textContent = "Source"
+        const cTime = document.createElement("th");
+        cTime.textContent = "Time"
+        const cUser = document.createElement("th");
+        cUser.textContent = "User"
+        const cMethod = document.createElement("th");
+        cMethod.textContent = "Method"
+        const cElapsedMS = document.createElement("th");
+        cElapsedMS.textContent = "Elapsed (ms)"
+        const cSubnetworkName = document.createElement("th");
+        cSubnetworkName.textContent = "Subnetwork Name"
+        const cLog = document.createElement("th");
+        cLog.textContent = "Full Log"
+        header.appendChild (cService)
+        header.appendChild (cTime)
+        header.appendChild (cUser)
+        header.appendChild (cMethod)
+        header.appendChild (cSubnetworkName)
+        header.appendChild (cElapsedMS)
+
+        header.appendChild (cLog) 
+        tblResult.appendChild(header)
+        allMessages.forEach(m => {
+            const logRow = document.createElement("tr");
+            const cService = document.createElement("td");
+            cService.textContent = m.source.replace(".MapServer", "")
+            const cTime = document.createElement("td");
+            cTime.textContent = m.time
+            const cUser = document.createElement("td");
+            cUser.textContent = m.user
+            const cMethod = document.createElement("td");
+            cMethod.textContent = m.methodName
+            const cElapsedMS = document.createElement("td");
+            cElapsedMS.textContent = m.elapsedms
+            const cSubnetworkName = document.createElement("td");
+            cSubnetworkName.textContent = m.subnetworkName
+
+            const cLog = document.createElement("td");
+            cLog.textContent = "..."
+            cLog.fullLog = m.message;
+            cLog.addEventListener("click", e=> {navigator.clipboard.writeText(e.target.fullLog); alert("Copied to clipboard")})
+            logRow.appendChild (cService)
+            logRow.appendChild (cTime)
+            logRow.appendChild (cUser)
+            logRow.appendChild (cMethod)
+            logRow.appendChild (cSubnetworkName)
+            logRow.appendChild (cElapsedMS)
+
+            logRow.appendChild (cLog) 
+            tblResult.appendChild(logRow)
+        })
+
+  
    
 }
 
@@ -666,8 +852,16 @@ function numberWithCommas(x) {
         let adminLog = new AdminLog(token, portal.serverUrl)
         tblResult.appendChild(prg);
         tblResult.appendChild(btn)
-        const startTime = Date.now()
-        const endTime = Date.now() - mins*60*1000
+        let startTime = Date.now()
+        const txtStartTime = document.getElementById("txtStartTime")
+        if (txtStartTime.value != "")
+            startTime = new Date(txtStartTime.value).getTime()
+
+        let endTime = startTime - mins*60*1000
+        const txtEndTime = document.getElementById("txtEndTime")
+        if (txtEndTime.value != "")
+            endTime = new Date(txtEndTime.value).getTime()
+
         let services = [theService + ".MapServer"] 
         if (theService == "(All Services)")
             services = "*"

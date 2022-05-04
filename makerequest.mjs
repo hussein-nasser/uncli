@@ -29,7 +29,7 @@ export function makeRequest (opts) {
         let f;
         try {
  
-            const nodeFetch = await import ("node-fetch");
+            let nodeFetch = await import ("node-fetch");
             f = nodeFetch.default;
         }
         catch(ex) {
