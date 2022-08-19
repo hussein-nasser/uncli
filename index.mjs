@@ -7,7 +7,7 @@ import { AdminLog } from "./adminlog.mjs"
 import  logger  from "./logger.mjs"
 import  fetch  from "node-fetch"
 //update version
-let version = "0.0.75";
+let version = "0.0.76";
 const GENERATE_TOKEN_TIME_MIN = 30;
 
 let rl = null;
@@ -358,7 +358,7 @@ const inputs = {
 
             for (let j = 0 ; j < fishnet[i].length; j++) {
                 
-                fishnet[i][j].content = '⚙️'
+                fishnet[i][j].content = '*'
                 const e =  fishnet[i][j].extent
             
                     try {
@@ -375,7 +375,7 @@ const inputs = {
                     result.duration = duration
                     console.table(result) 
                     //console.log(`add_env(${ JSON.stringify(e)})`)
-                    fishnet[i][j].content = '✔️'
+                    fishnet[i][j].content = 'x'
 
                     }
                     catch(ex){

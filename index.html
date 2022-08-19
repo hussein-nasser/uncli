@@ -8,25 +8,25 @@
 </head>
 <body>
 
-    <table>
+    <table border =0>
         <tr>
             <td>
             Admin User
         </td>
-            <td colspan =3><input type = 'text' id = 'txtAdmin' value = 'admin'></td>
+            <td colspan =5><input type = 'text' id = 'txtAdmin' value = 'admin'></td>
         </tr>
         <tr>
         <td>
             Admin Password
         </td>
-            <td colspan =3><input type = 'password' id = 'txtPassword' value = ''></td>
+            <td colspan =5><input type = 'password' id = 'txtPassword' value = ''></td>
         </tr>
         <tr>
             
-            <td colspan =5><button id = 'btnLogin'>Login</button></td>
+            <td colspan =6><button id = 'btnLogin'>Login</button></td>
             </tr>
         <tr><td>Service</td>
-            <td colspan =3 ><select id ='cmbService'>
+            <td colspan =5 ><select id ='cmbService'>
                 
             </select>
             </td>
@@ -34,18 +34,31 @@
          
     <tr> 
         <td >Age</td>
-        <td colspan =3><input type ='text' id = 'txtAge' value = '10' style="width:30px"> minutes</td>
+        <td colspan =5><input type ='text' id = 'txtAge' value = '10' style="width:30px"> minutes</td>
     </tr>
-    <tr colspan =4>
-        <td><button id = 'btnTraceLogs'>Trace Logs</button></td>
-        <td><button id = 'btnValidateLogs'>Validate Logs</button></td>
-        <td><button id = 'btnUpdateSubnetworkLogs'>Update Subnetwork Logs</button></td>
-        <td><button id = 'btnAR'>Attribute Rules Logs</button></td>
-        <td><button id = 'btnSQLLogs'>SQL Logs</button></td>
-        <td>Message<input id = 'txtFilter' type = 'text'></td>
-        <td>User<input id = 'txtUser' type = 'text'></td>
-        <td>Start Time<input id = 'txtStartTime' type = 'text'></td>
-        <td>End Time<input id = 'txtEndTime' type = 'text'></td>
+    <tr>
+        <td>Message</td>
+        <td><input id = 'txtFilter' type = 'text'></td>
+        <td>User</td>
+        <td colspan =3><input id = 'txtUser' type = 'text'></td>
+    </tr>
+    <tr>
+
+        <td>Start Time</td>
+        <td><input id = 'txtStartTime' type = 'text'></td>
+        <td>End Time</td>
+        <td colspan =3><input id = 'txtEndTime' type = 'text'></td>
+    </tr>
+    <tr>
+        <td colspan = 6>
+            <button id = 'btnTraceLogs'>Trace Logs</button> 
+            <button id = 'btnValidateLogs'>Validate Logs</button> 
+            <button id = 'btnUpdateSubnetworkLogs'>Update Subnetwork Logs</button>
+            <button id = 'btnAR'>Attribute Rules Logs</button> 
+            <button id = 'btnSQLLogs'>SQL Logs</button>
+            <button id = 'btnDownloadLogs'>Raw Logs</button>
+        </td>
+      
     </tr>
 
     </table>
@@ -70,6 +83,8 @@
     }
  
 
+    const release = 11.1
+
     let portal;
     let adminLog = null;
     let cmbService 
@@ -93,9 +108,22 @@
         token = await getToken(parameters);
 
         //if we logged in successfully 
-        const opt = document.createElement("option")
+        let opt = document.createElement("option")
         opt.textContent = "(All Services)"
         cmbService.appendChild (opt)
+
+        opt = document.createElement("option")
+        opt.textContent = "System/ValidationTools.GPServer"
+        cmbService.appendChild (opt)
+
+         opt = document.createElement("option")
+        opt.textContent = "System/UtilityNetworkTools.GPServer"
+        cmbService.appendChild (opt)
+
+         opt = document.createElement("option")
+        opt.textContent = "System/VersionManagementTools.GPServer"
+        cmbService.appendChild (opt)
+
 
         const services = await portal.services()
         const featureServices = services.services.filter(s => s.type == "FeatureServer")
@@ -112,7 +140,8 @@
         document.getElementById("btnUpdateSubnetworkLogs").disabled = false 
         document.getElementById("btnAR").disabled = false 
         document.getElementById("btnSQLLogs").disabled = false 
-  
+        document.getElementById("btnDownloadLogs").disabled = false 
+        
 
         }
         catch(ex){
@@ -122,7 +151,7 @@
 
 
     async function getToken(parameters) {
-        portal = new Portal(parameters.portal, parameters.user, parameters.password,300, parameters.server, parameters.referer)
+        portal = new Portal(parameters.portal, parameters.user, parameters.password,30000, parameters.server, parameters.referer)
         console.log("About to connect..")
         const token = await portal.connect()
         console.log(`Token generanted successfully.`)
@@ -247,7 +276,7 @@
         })
 
 
-
+        addCSV(allMessages) 
          //await populateMessages(allMessages)
  
          
@@ -258,42 +287,58 @@
     async function loadValidateLogs () {
         //build table
         const tblResult = document.getElementById("tblResult");
-        //clear
-        while(tblResult.firstChild) tblResult.removeChild(tblResult.firstChild)
- 
+       
     parameters.service = cmbService.options[cmbService.selectedIndex].text
 
         
   let mins = document.getElementById("txtAge").value  //query logs for the last 30 minutes
 
   console.log(`Querying validate logs for ${parameters.service} for the last ${mins} minutes ...`)
-        
-        //-1 && m.message.indexOf("The network is built.") > -1 && m.methodName == 'BuildEngineLog')
-         //page query the admin log
-         let allMessages = await adminLogQueryWithPaging(mins, parameters.service, [102003], "The network is built.", "VERBOSE")
- 
-   
-        //validate logs missing elapsed populate it
-        allMessages = allMessages.map( m => {
-            try{
-                
-                //The network is built. 0.093 seconds (4.982 total) - 29 MB memory
     
-            let re = /The network is built. [-+]?([0-9]*\.[0-9]+|[0-9]+) seconds \([-+]?([0-9]*\.[0-9]+|[0-9]+) total\)/;
-            let res = re.exec(m.message)
-            if (res && res.length  > 1)
-                m.elapsed = res[2]
+    let buildStrings = []
+    buildStrings.push("The network is built. ")
+    buildStrings.push(    "Network built:  ")
+    let allMessages = [];    
+    for (let i = 0; i < buildStrings.length;i ++ ) {
+            //clear
+            while(tblResult.firstChild) tblResult.removeChild(tblResult.firstChild)
             
-                return m;
-            }
-            catch(ex){
-                return m;
-            }
-        })
+            //in various releases the strings have changed, gotta query all 
+            let buildString = buildStrings[i];
+            
+            //-1 && m.message.indexOf("The network is built.") > -1 && m.methodName == 'BuildEngineLog')
+            //page query the admin log
+            // prior to 11.1 let allMessages = await adminLogQueryWithPaging(mins, parameters.service, [102003], "The network is built.", "VERBOSE")
+            let allMessagesNew = await adminLogQueryWithPaging(mins, parameters.service, [102003], buildString, "VERBOSE")
+            //Network built:
+            //validate logs missing elapsed populate it
+            allMessagesNew = allMessagesNew.map( m => {
+                try{
+                    
+                    //The network is built. 0.093 seconds (4.982 total) - 29 MB memory
+                    //Network built:  0.056 seconds (0.359 total) - 0 MB memory   
+                //let re = /The network is built. [-+]?([0-9]*\.[0-9]+|[0-9]+) seconds \([-+]?([0-9]*\.[0-9]+|[0-9]+) total\)/;
+                let re = new RegExp(`${buildString}[-+]?([0-9]*\\.[0-9]+|[0-9]+) seconds \\([-+]?([0-9]*\\.[0-9]+|[0-9]+) total\\)`)
 
+                let res = re.exec(m.message)
+                if (res && res.length  > 1)
+                    m.elapsed = res[2]
+                
+                    return m;
+                }
+                catch(ex){
+                    return m;
+                }
+            })
+
+            allMessages.push(...allMessagesNew);
+
+
+    }
+  
 
    await populateMessages(allMessages)
-
+   addCSV(allMessages) 
    
 }
 
@@ -418,6 +463,7 @@ async function loadUpdateSubnetworkLogs () {
             tblResult.appendChild(logRow)
         })
 
+    addCSV(allMessages) 
   
    
 }
@@ -438,12 +484,12 @@ async function loadAttributeRules () {
         let showMinGuid = false 
              
         logger.info(`Querying attribute rules logs for ${parameters.service} in the past ${mins} minutes...`)
-        let allMessages = await adminLogQueryWithPaging(mins, parameters.service, [102003], "Attribute rule execution complete:", "DEBUG")
+        let allMessages = await adminLogQueryWithPaging(mins, parameters.service, [102003], "Attribute rule executed:", "DEBUG")
 
  
         const arMessages = filterMessages(allMessages)
-            .filter(m => m.message.indexOf("Attribute rule execution complete:") > -1)
-            .map (m =>  JSON.parse(m.message.replace("Attribute rule execution complete:", "")))
+            .filter(m => m.message.indexOf("Attribute rule executed: ") > -1)
+            .map (m =>  JSON.parse(m.message.replace("Attribute rule executed: ", "")))
             .map( m => {
                 m["Elapsed Time (ms)"] =  Math.round(m["Elapsed Time"]*1000000)/1000
                // m["Arcade Evaluation Time:"] = Math.round(m["Arcade Evaluation Time:"]*1000,6)
@@ -493,6 +539,7 @@ async function loadAttributeRules () {
                 const rule = {}
                 rule["Attribute Rule"] = a;
                 rule["Total Cost (ms)"] = parseFloat(arMessages[a].totalTime.toFixed(2))
+                rule["Occurrence"] = parseFloat(arMessages[a].occurrence)
                 if (!showMinGuid && !showMaxGuid) rule["Average Cost (ms)"] = parseFloat(arMessages[a].avgTime.toFixed(2))
                 rule["Max execution time (ms)"] = parseFloat(arMessages[a].maxTime.toFixed(2))
                 if (showMaxGuid) rule["Max GUID"] = arMessages[a].maxGuid
@@ -521,6 +568,9 @@ async function loadAttributeRules () {
         const cTotalCost = document.createElement("th");
         cTotalCost.textContent = "Total Cost (ms)"
       
+        const cOccurrence = document.createElement("th");
+        cOccurrence.textContent = "Occurrence"
+
         const cMaxExecutionTime = document.createElement("th");
         cMaxExecutionTime.textContent = "Max execution time (ms)"
 
@@ -533,6 +583,7 @@ async function loadAttributeRules () {
  
         header.appendChild (cAttributeRule)
         header.appendChild (cTotalCost)
+        header.appendChild (cOccurrence)
         header.appendChild (cMaxExecutionTime)
         header.appendChild (cMaxGuid)
         header.appendChild (cMinExecutionTime)
@@ -547,9 +598,12 @@ async function loadAttributeRules () {
                 const cAttributeRule = document.createElement("td");
                 cAttributeRule.textContent = rule["Attribute Rule"]
             
+                const cOccurrence = document.createElement("td");
+                cOccurrence.textContent = rule["Occurrence"]
+             
                 const cTotalCost = document.createElement("td");
                 cTotalCost.textContent = rule["Total Cost (ms)"]
-            
+
                 const cMaxExecutionTime = document.createElement("td");
                 cMaxExecutionTime.textContent = rule["Max execution time (ms)"]
 
@@ -561,6 +615,7 @@ async function loadAttributeRules () {
                 
                 logRow.appendChild (cAttributeRule)
                 logRow.appendChild (cTotalCost)
+                logRow.appendChild (cOccurrence)
                 logRow.appendChild (cMaxExecutionTime)
                 logRow.appendChild (cMaxGuid)
                 logRow.appendChild (cMinExecutionTime)
@@ -572,9 +627,81 @@ async function loadAttributeRules () {
 
         const totalARExecution = rules.reduce( (prev, cur) =>  prev + cur["Total Cost (ms)"], 0)
         console.log(`Total time spend executing attribute rules (${Math.round(totalARExecution)} ms) (${Math.round(totalARExecution/1000)} s) (${Math.round(totalARExecution/(1000*60))} m)`)
+        addCSV(rules) 
+
+
+}
+
+
+async function downloadLogs () {
+
+    //build table
+    const tblResult = document.getElementById("tblResult");
+    //clear
+    while(tblResult.firstChild) tblResult.removeChild(tblResult.firstChild)
+        
+
+    parameters.service = cmbService.options[cmbService.selectedIndex].text
+    
+    
+    let mins = document.getElementById("txtAge").value  //query logs for the last 30 minutes
+
+  
+    console.log(`Querying all debug logs for ${parameters.service} for the last ${mins} minutes ...`)
+
+        //startTime is the most recent
+        //endTime is the oldest
+
          
+     //page query the admin log
+     let allMessages = await adminLogQueryWithPaging(mins, parameters.service, [], "", "DEBUG")
+ 
+     //filter make time pretty
+     allMessages = filterMessages (allMessages).map(m => {
+            const newMessage = Object.assign({}, m);
+            newMessage.time = new Date(newMessage.time).toLocaleString()
+            return newMessage;
+        })
+      
 
+     await populateMessagesAsIs(allMessages)
+     addCSV(allMessages)
+ 
+}
 
+function addCSV (allMessages) {
+    
+  allMessages = filterMessages (allMessages).map(m => {
+            const newMessage = Object.assign({}, m);
+            newMessage.message = newMessage?.message?.replace(",","-")
+            newMessage.message = newMessage?.message?.replace("\"","-")
+            return newMessage;
+        })
+
+    const csv=  jsonToCSV(allMessages)
+    const blob = new Blob([csv], {"type": "text/csv"});
+    const url = window.URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    a.download    = "log.csv";
+    a.href        = url;
+    a.textContent = "Download log.csv";
+    tblResult.appendChild(a);
+
+}
+
+  function jsonToCSV(jsonObj) {
+ 
+var fields = Object.keys(jsonObj[0])
+var replacer = function(key, value) { return value === null ? '' : value } 
+var csv = jsonObj.map(function(row){
+  return fields.map(function(fieldName){
+    return JSON.stringify(row[fieldName], replacer)
+  }).join(',')
+})
+csv.unshift(fields.join(',')) // add header column
+ csv = csv.join('\r\n');
+ return csv;
 }
 async function loadSQLLogs () {
 
@@ -663,7 +790,7 @@ async function loadSQLLogs () {
         tblResult.appendChild(header)
 
 
-        allMessages= allMessages.forEach(m => 
+         allMessages.forEach(m => 
             {
              
                 const logRow = document.createElement("tr");
@@ -706,8 +833,8 @@ async function loadSQLLogs () {
                 //cLog.textContent = m.message.substr( m.message.indexOf("SQL: ") + 5, 50) + "..."
                 cLog.fullLog = m.message;
                 cLog.title = m.message + "\nClick to copy"
-                cLog.addEventListener("click", e=> {navigator.clipboard.writeText(e.target.fullLog); e.target.selectionStart = 0; e.target.selectionEnd = e.target.value.length;
-                    /* alert("Copied to clipboard") */})
+                //cLog.addEventListener("click", e=> {navigator.clipboard.writeText(e.target.fullLog); e.target.selectionStart = 0; e.target.selectionEnd = e.target.value.length;
+                    /* alert("Copied to clipboard") *///})
                 logRow.appendChild (cService)
                 logRow.appendChild (cTime)
                 logRow.appendChild (cUser)
@@ -719,9 +846,8 @@ async function loadSQLLogs () {
                 
  
         })
- 
-   //await populateMessages(allMessages)
-
+  
+        addCSV(allMessages)
    
 }
 
@@ -744,6 +870,12 @@ function numberWithCommas(x) {
     const btnUpdateSubnetworkLogs = document.getElementById("btnUpdateSubnetworkLogs");
     btnUpdateSubnetworkLogs.addEventListener("click", e => loadUpdateSubnetworkLogs())
     btnUpdateSubnetworkLogs.disabled = true
+    
+
+    const btnDownloadLogs = document.getElementById("btnDownloadLogs");
+    btnDownloadLogs.addEventListener("click", e => downloadLogs())
+    btnDownloadLogs.disabled = true
+
 
     const btnSQLLogs = document.getElementById("btnSQLLogs");
     btnSQLLogs.addEventListener("click", e => loadSQLLogs())
@@ -770,6 +902,57 @@ function numberWithCommas(x) {
         return filtered
     }
 
+    async function populateMessagesAsIs(allTheMessages) {
+        
+        //build table
+        const tblResult = document.getElementById("tblResult");
+        //clear
+        while(tblResult.firstChild) tblResult.removeChild(tblResult.firstChild)
+
+        const header = document.createElement("tr");
+        const cService = document.createElement("th");
+        cService.textContent = "Source"
+        const cTime = document.createElement("th");
+        cTime.textContent = "Time"
+        const cUser = document.createElement("th");
+        cUser.textContent = "User"
+        const cMethod = document.createElement("th");
+        cMethod.textContent = "Method"
+        const cElapsedMS = document.createElement("th");
+        cElapsedMS.textContent = "Elapsed (ms)"
+        const cLog = document.createElement("th");
+        cLog.textContent = "Full Log"
+        header.appendChild (cService)
+        header.appendChild (cTime)
+        header.appendChild (cUser)
+        header.appendChild (cMethod)
+        header.appendChild (cElapsedMS)
+        header.appendChild (cLog) 
+        tblResult.appendChild(header)
+        allTheMessages.forEach(m => {
+            const logRow = document.createElement("tr");
+            const cService = document.createElement("td");
+            cService.textContent = m.source.replace(".MapServer", "")
+            const cTime = document.createElement("td");
+            cTime.textContent =  new Date(m.time).toLocaleString() 
+            const cUser = document.createElement("td");
+            cUser.textContent = m.user
+            const cMethod = document.createElement("td");
+            cMethod.textContent = m.methodName
+            const cElapsedMS = document.createElement("td");
+            cElapsedMS.textContent = m.elapsed
+            const cLog = document.createElement("td");
+            cLog.textContent = m.message 
+           // cLog.addEventListener("click", e=> {navigator.clipboard.writeText(e.target.fullLog); alert("Copied to clipboard")})
+            logRow.appendChild (cService)
+            logRow.appendChild (cTime)
+            logRow.appendChild (cUser)
+            logRow.appendChild (cMethod)
+            logRow.appendChild (cElapsedMS)
+            logRow.appendChild (cLog) 
+            tblResult.appendChild(logRow)
+        })
+    }
     async function populateMessages(allTheMessages) {
 
         //sort messages
@@ -862,7 +1045,12 @@ function numberWithCommas(x) {
         if (txtEndTime.value != "")
             endTime = new Date(txtEndTime.value).getTime()
 
-        let services = [theService + ".MapServer"] 
+        let services = []
+        if (!theService.includes(".GPServer"))
+            services = [theService + ".MapServer"] 
+        else
+            services =  [theService] 
+        
         if (theService == "(All Services)")
             services = "*"
         let result= await adminLog.query(code, services, topLogCount, startTime ,endTime , level)
