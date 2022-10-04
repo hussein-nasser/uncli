@@ -7,7 +7,7 @@ import { AdminLog } from "./adminlog.mjs"
 import  logger  from "./logger.mjs"
 import  fetch  from "node-fetch"
 //update version
-let version = "0.0.76";
+let version = "0.0.77";
 const GENERATE_TOKEN_TIME_MIN = 30;
 
 let rl = null;
@@ -85,8 +85,7 @@ async function regenerateToken(parameters) {
 //connect to the service
 async function connect(parameters) {
     try{
-     //print the parameters
-    logger.info(JSON.stringify(parameters));
+    
     //connect to portal
     
     const token = await getToken(parameters);

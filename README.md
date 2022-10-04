@@ -64,10 +64,36 @@ uncli> help
 Create a commands.txt file and type in the commands in that file
 command.txt
 ```text
-update subnetworks -all
-export subnetworks -new
+update subnetworks --all
+export subnetworks --new
 ```
 
 
 > uncli --portal https://utilitynetwork.esri.com/portal --service NapervilleElectric_SQLServer --user tester --password tester.108 --file commands.txt --verify true
 
+## Server Log web parser
+This tool also provides a way to parse server logs and view them for each utility network and geodatabase function
+
+To install on IIS follow these steps: This server assume your machine name where the Webadaptor lives is `utilitynetwork.esri.com` 
+
+- Login to machine where you have the webadaptor
+- Create a folder called `log` in `c:\inetpub\wwwroot`
+- Copy the entire content of the repro https://github.com/hussein-nasser/uncli to c:\inetpub\wwwroot\log
+- Open IIS (Internet Information Services)
+- Open MIME Types
+- Under action click Add 
+- under file extension type `.mjs` and under MIME Type write `application/javascript`
+- Restart IIS
+- In c:\inetpub\wwwroot\log edit the `index.html` and find this line of code
+- Update the JSON object with the correct URL, for example if your webadaptor is utilitynetwork.esri.com make sure you update that in both the portal and referer. 
+
+```js
+let parameters = {
+        "user": "unadmin",
+        "password": "",
+        "portal": "https://utilitynetwork.esri.com/portal",
+        "service": "",
+        "referer": "https://utilitynetwork.esri.com/log"
+    }
+    ```
+- Save the HTML and then visit `https://utilitynetwork.esri.com/log` put in your username and password and login to use the parser
