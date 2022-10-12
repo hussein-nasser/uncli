@@ -50,12 +50,20 @@
         <td colspan =3><input id = 'txtEndTime' type = 'text'></td>
     </tr>
     <tr>
+
+        <td>Method Name</td>
+        <td><input id = 'txtMethodName' type = 'text'></td>
+        <td>RequestID</td>
+        <td colspan =3><input id = 'txtRequestId' type = 'text'></td>
+    </tr>
+    <tr>
         <td colspan = 6>
             <button id = 'btnTraceLogs'>Trace Logs</button> 
             <button id = 'btnValidateLogs'>Validate Logs</button> 
             <button id = 'btnUpdateSubnetworkLogs'>Update Subnetwork Logs</button>
             <button id = 'btnAR'>Attribute Rules Logs</button> 
             <button id = 'btnSQLLogs'>SQL Logs</button>
+            <button id = 'btnApplyEditsLogs'>ApplyEdits Logs</button>
             <button id = 'btnDownloadLogs'>Raw Logs</button>
         </td>
       
@@ -63,7 +71,7 @@
 
     </table>
 
-    <table id = 'tblResult' border =1 cellpadding = 4 cellspacing = 4 style="text-align:center">
+    <table id = 'tblResult' border =1 cellpadding = 4 cellspacing = 4 style="text-align:left">
 
     </table>
     <script type = 'module'>
@@ -140,6 +148,7 @@
         document.getElementById("btnUpdateSubnetworkLogs").disabled = false 
         document.getElementById("btnAR").disabled = false 
         document.getElementById("btnSQLLogs").disabled = false 
+        document.getElementById("btnApplyEditsLogs").disabled = false 
         document.getElementById("btnDownloadLogs").disabled = false 
         
 
@@ -703,6 +712,154 @@ csv.unshift(fields.join(',')) // add header column
  csv = csv.join('\r\n');
  return csv;
 }
+
+
+async function loadApplyEditsLogs () {
+
+//build table
+const tblResult = document.getElementById("tblResult");
+//clear
+while(tblResult.firstChild) tblResult.removeChild(tblResult.firstChild)
+    
+
+parameters.service = cmbService.options[cmbService.selectedIndex].text
+
+
+let mins = document.getElementById("txtAge").value  //query logs for the last 30 minutes
+
+
+console.log(`Querying applyEdits logs for ${parameters.service} for the last ${mins} minutes ...`)
+
+    //startTime is the most recent
+    //endTime is the oldest
+
+     
+ //page query the admin log , search for /applyEdits logs by methodname
+  let allMessages = await adminLogQueryWithPaging(mins, parameters.service, [17002,100004], "", "FINE", "/applyEdits")
+
+
+  while(tblResult.firstChild) tblResult.removeChild(tblResult.firstChild)
+
+    let i =0;
+    
+    const header = document.createElement("tr");
+    const cService = document.createElement("th");
+    cService.textContent = "Source"
+    const cTime = document.createElement("th");
+    cTime.textContent = "Time"
+    const cUser = document.createElement("th");
+    cUser.textContent = "User"
+    const cVersion = document.createElement("th");
+    cVersion.textContent = "Version"
+    const cIds = document.createElement("th");
+    cIds.textContent = "LayerIds"
+    const cTotalTime = document.createElement("th");
+    cTotalTime.title  = "Total time applyEdits took"
+    cTotalTime.textContent = "Total Time (ms)"
+    const cLog = document.createElement("th");
+    cLog.textContent = "applyEdits payload"
+    header.appendChild (cService)
+    header.appendChild (cTime)
+    header.appendChild (cUser)
+    header.appendChild (cVersion)
+    header.appendChild (cIds)
+    header.appendChild (cTotalTime)
+    header.appendChild (cLog) 
+    tblResult.appendChild(header)
+
+    //build out the dictionary, key is request id, value is another dictionary
+    const applyEditslogs = {}
+    
+    allMessages.forEach (m => {
+
+        if (!applyEditslogs[m.requestID])
+            applyEditslogs[m.requestID] = {}
+        //get elapsed
+        if (m.message.indexOf("REST request successfully processed. Response size is ") > -1)
+        {
+            applyEditslogs[m.requestID].elapsed = m.elapsed
+            applyEditslogs[m.requestID].source = m.source.replace(".MapServer", "")
+            applyEditslogs[m.requestID].user = m.user
+            applyEditslogs[m.requestID].time = m.time
+            applyEditslogs[m.requestID].requestID = m.requestID
+
+        }
+        
+        if (m.message.indexOf("GraphicFeatureServer::HandleRESTRequest ## inputJSON ") > -1)
+        {
+            applyEditslogs[m.requestID].message = m.message.replace("GraphicFeatureServer::HandleRESTRequest ## inputJSON = ","")
+            const applyEditsPayload = JSON.parse(applyEditslogs[m.requestID].message)
+            applyEditslogs[m.requestID].gdbVersion = applyEditsPayload.gdbVersion
+            applyEditslogs[m.requestID].ids =  [...new Set(applyEditsPayload.edits.reduce ( (prev, cur) => {prev.push(cur.id); return prev}, []) )]; 
+        }
+
+        
+        
+    })
+
+    allMessages = []
+
+     Object.keys(applyEditslogs).forEach(k =>
+        {
+            const m = applyEditslogs[k]
+            allMessages.push(m)
+              
+        })
+
+
+    
+  console.log ("Filtering messages...") 
+ 
+  allMessages = filterMessages(allMessages)
+  .sort( (m1,m2) => Math.round(m2.elapsed*1000) -Math.round(m1.elapsed*1000))
+
+  allMessages.forEach (m => {  
+            const logRow = document.createElement("tr");
+  
+            const cService = document.createElement("th");
+            cService.textContent = m.source
+
+            const cTime = document.createElement("td");
+            cTime.textContent =  new Date(m.time).toLocaleString()
+
+            const cUser = document.createElement("td");
+            cUser.textContent = m.user
+
+            const cVersion = document.createElement("td");
+            cVersion.textContent = m.gdbVersion 
+           
+            
+            const cIds = document.createElement("td");
+            cIds.textContent = m.ids 
+
+            const cTotalTime = document.createElement("td");
+            cTotalTime.textContent = numberWithCommas(Math.round(m.elapsed*1000))
+            const cLog = document.createElement("td");
+            const cLogText = document.createElement("input")
+            cLogText.type = "text"
+            cLogText.style = "width:400px"
+            cLogText.value =  m.message
+            cLogText.readOnly= true;
+            cLog.appendChild(cLogText)
+            //cLog.fullLog = m.payLoad;
+            //cLog.title = m.payLoad + "\nClick to copy"
+           // cLog.addEventListener("click", e=> {navigator.clipboard.writeText(e.target.fullLog); e.target.selectionStart = 0; e.target.selectionEnd = e.target.value.length;
+            //    alert("Copied to clipboard")  })
+            logRow.appendChild (cService)
+            logRow.appendChild (cTime)
+            logRow.appendChild (cUser)
+            logRow.appendChild (cVersion)
+            logRow.appendChild (cIds)
+            logRow.appendChild (cTotalTime)
+            logRow.appendChild (cLog) 
+            tblResult.appendChild(logRow)
+  });
+  
+    addCSV(allMessages)
+
+}
+
+
 async function loadSQLLogs () {
 
     //build table
@@ -881,6 +1038,12 @@ function numberWithCommas(x) {
     btnSQLLogs.addEventListener("click", e => loadSQLLogs())
     btnSQLLogs.disabled = true
 
+     
+    const btnApplyEditsLogs = document.getElementById("btnApplyEditsLogs");
+    btnApplyEditsLogs.addEventListener("click", e => loadApplyEditsLogs())
+    btnApplyEditsLogs.disabled = true
+
+
     const btnAR = document.getElementById("btnAR");
     btnAR.addEventListener("click", e => loadAttributeRules())
     btnAR.disabled = true
@@ -888,13 +1051,24 @@ function numberWithCommas(x) {
    function filterMessages (allMessages) {
         const txtFilter = document.getElementById("txtFilter")
         const txtUser = document.getElementById("txtUser")
-        if (txtFilter.value == "" && txtUser.value == "") return allMessages;
+        const txtMethodName = document.getElementById("txtMethodName")
+        const txtRequestId = document.getElementById("txtRequestId")
+
+        //don't bother if no filters
+        if (txtFilter.value == "" && txtUser.value == "" 
+        && txtMethodName.value == "" && txtRequestId.value == "" ) return allMessages;
+
         //const filtered= allMessages.filter(m => m.message.toUpperCase().indexOf(txtFilter.value.toUpperCase()) > 0 && m.user.toUpperCase().indexOf(txtUser.value.toUpperCase()) > 0) 
         const filtered= allMessages.filter(m => {
 
             if (m.message.toUpperCase().indexOf(txtFilter.value.toUpperCase()) >= 0 
-                    && 
-                m.user.toUpperCase().indexOf(txtUser.value.toUpperCase()) >= 0)
+                && 
+                m.user.toUpperCase().indexOf(txtUser.value.toUpperCase()) >= 0 
+                && 
+                m.methodName.toUpperCase().indexOf(txtMethodName.value.toUpperCase()) >= 0 
+                && 
+                m.requestID.toUpperCase().indexOf(txtRequestId.value.toUpperCase()) >= 0 
+                )
             return true
 
             return false
@@ -918,6 +1092,8 @@ function numberWithCommas(x) {
         cUser.textContent = "User"
         const cMethod = document.createElement("th");
         cMethod.textContent = "Method"
+        const cRequestId = document.createElement("th");
+        cRequestId.textContent = "RequestId"
         const cElapsedMS = document.createElement("th");
         cElapsedMS.textContent = "Elapsed (ms)"
         const cLog = document.createElement("th");
@@ -926,6 +1102,7 @@ function numberWithCommas(x) {
         header.appendChild (cTime)
         header.appendChild (cUser)
         header.appendChild (cMethod)
+        header.appendChild (cRequestId)
         header.appendChild (cElapsedMS)
         header.appendChild (cLog) 
         tblResult.appendChild(header)
@@ -939,6 +1116,8 @@ function numberWithCommas(x) {
             cUser.textContent = m.user
             const cMethod = document.createElement("td");
             cMethod.textContent = m.methodName
+            const cRequestId = document.createElement("td");
+            cRequestId.textContent = m.requestID
             const cElapsedMS = document.createElement("td");
             cElapsedMS.textContent = m.elapsed
             const cLog = document.createElement("td");
@@ -948,6 +1127,7 @@ function numberWithCommas(x) {
             logRow.appendChild (cTime)
             logRow.appendChild (cUser)
             logRow.appendChild (cMethod)
+            logRow.appendChild (cRequestId)
             logRow.appendChild (cElapsedMS)
             logRow.appendChild (cLog) 
             tblResult.appendChild(logRow)
@@ -1024,7 +1204,7 @@ function numberWithCommas(x) {
     }
 
 
-    async function adminLogQueryWithPaging(mins, theService, code, filter, level){
+    async function adminLogQueryWithPaging(mins, theService, code, messageFilter, level, methodFilter = ""){
         const topLogCount = 1000;
         let stop = false;
         const prg = document.createTextNode("Loading.... 0%");
@@ -1056,7 +1236,7 @@ function numberWithCommas(x) {
         let result= await adminLog.query(code, services, topLogCount, startTime ,endTime , level)
         let jsonRes = await result.json()
         let allMessages = [].concat(jsonRes.logMessages) 
-        allMessages = allMessages.filter(m => m.message.indexOf(filter) > -1)
+        allMessages = allMessages.filter(m => m.message.indexOf(messageFilter) > -1 && m.methodName.indexOf(methodFilter) > -1)
         while (jsonRes.hasMore && !stop)
         {  
             //start paging
@@ -1065,7 +1245,7 @@ function numberWithCommas(x) {
             result= await adminLog.query(code, services, topLogCount, jsonRes.endTime, endTime, level)
             jsonRes = await result.json()
   
-            allMessages = allMessages.concat(jsonRes.logMessages.filter(m => m.message.indexOf(filter) > -1))
+            allMessages = allMessages.concat(jsonRes.logMessages.filter(m => m.message.indexOf(messageFilter) > -1 && m.methodName.indexOf(methodFilter) > -1))
         }
 
         return allMessages
