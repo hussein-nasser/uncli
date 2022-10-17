@@ -64,6 +64,8 @@
             <button id = 'btnAR'>Attribute Rules Logs</button> 
             <button id = 'btnSQLLogs'>SQL Logs</button>
             <button id = 'btnApplyEditsLogs'>ApplyEdits Logs</button>
+            <button id = 'btnQueryLogs'>Query Logs</button>
+            <button id = 'btnReconcileLogs'>Reconcile Logs</button>
             <button id = 'btnDownloadLogs'>Raw Logs</button>
         </td>
       
@@ -85,13 +87,13 @@
     let parameters = {
         "user": "unadmin",
         "password": "",
-        "portal": "https://utilitynetwork.esri.com/portal",
+        "portal": "",  //https://utilitynetwork.esri.com/portal set your portal url webadaptor if not /portal
         "service": "",
-        "referer": "https://utilitynetwork.esri.com/log"
+        "referer": "" //set the referer to be the same url you are running this from https://utilitynetwork.esri.com/log 
     }
- 
 
-    const release = 11.1
+    if (parameters.portal === "") parameters.portal = window.location.origin + "/portal"
+    if (parameters.referer === "") parameters.referer = window.location.href
 
     let portal;
     let adminLog = null;
@@ -149,7 +151,9 @@
         document.getElementById("btnAR").disabled = false 
         document.getElementById("btnSQLLogs").disabled = false 
         document.getElementById("btnApplyEditsLogs").disabled = false 
+        document.getElementById("btnQueryLogs").disabled = false 
         document.getElementById("btnDownloadLogs").disabled = false 
+        document.getElementById("btnReconcileLogs").disabled = false 
         
 
         }
@@ -666,9 +670,12 @@ async function downloadLogs () {
      let allMessages = await adminLogQueryWithPaging(mins, parameters.service, [], "", "DEBUG")
  
      //filter make time pretty
-     allMessages = filterMessages (allMessages).map(m => {
+     allMessages = filterMessages (allMessages)
+     .sort( (m1,m2) => m2.time - m1.time)
+     .map(m => {
             const newMessage = Object.assign({}, m);
             newMessage.time = new Date(newMessage.time).toLocaleString()
+            newMessage.elapsed = Math.round(newMessage.elapsed * 1000) ;
             return newMessage;
         })
       
@@ -860,6 +867,356 @@ console.log(`Querying applyEdits logs for ${parameters.service} for the last ${m
 }
 
 
+
+
+async function reconcileLogs () {
+
+//build table
+const tblResult = document.getElementById("tblResult");
+//clear
+while(tblResult.firstChild) tblResult.removeChild(tblResult.firstChild)
+    
+
+parameters.service = cmbService.options[cmbService.selectedIndex].text
+
+
+let mins = document.getElementById("txtAge").value  //query logs for the last 30 minutes
+
+
+console.log(`Querying reconcile logs for ${parameters.service} for the last ${mins} minutes ...`)
+
+    //startTime is the most recent
+    //endTime is the oldest
+
+     
+ //page query the admin log , search for /applyEdits logs by methodname
+  let allMessages = await adminLogQueryWithPaging(mins, parameters.service, [102003,102024,102023], "", "DEBUG")
+
+
+  while(tblResult.firstChild) tblResult.removeChild(tblResult.firstChild)
+
+    let i =0;
+    
+    const header = document.createElement("tr");
+    const cService = document.createElement("th");
+    cService.textContent = "Source"
+    const cTime = document.createElement("th");
+    cTime.textContent = "Time"
+    const cUser = document.createElement("th");
+    cUser.textContent = "User"
+    const cVersion = document.createElement("th");
+    cVersion.textContent = "Version"
+    const cMethodName = document.createElement("th");
+    cMethodName.textContent = "MethodName"
+    const cRequestId = document.createElement("th");
+    cRequestId.textContent = "RequestId"
+    const cTotalTime = document.createElement("th");
+    cTotalTime.title  = "Total time reconcile took"
+    cTotalTime.textContent = "Total Time (ms)"
+ 
+
+    const cLog = document.createElement("th");
+    cLog.textContent = "Reconcile details"
+    header.appendChild (cService)
+    header.appendChild (cTime)
+    header.appendChild (cUser)
+    header.appendChild (cVersion)
+    header.appendChild (cMethodName)
+    header.appendChild (cRequestId)
+    header.appendChild (cTotalTime)
+ 
+    header.appendChild (cLog) 
+    tblResult.appendChild(header)
+
+    //build out the dictionary, key is request id, value is another dictionary
+    const queryLogs = {}
+    //sort by time
+    allMessages = allMessages.sort ( (m1, m2) => m2.time - m1.time )
+    allMessages.forEach (m => {
+
+        if (!queryLogs[m.requestID])
+            queryLogs[m.requestID] = {"message": "Time,Method,Elapsed_ms,Message"}
+
+        queryLogs[m.requestID].message += "\r\n" + m.time + "," + m.methodName + "," + Math.round(m.elapsed*1000) + "," + m.message 
+
+        //get elapsed
+        //check for async (method GPReconcileVersionAsync::Execute)
+        //sync
+        //VersionManagementServer::HandleREST_ReconcileOperation
+        //message Returned moment: 
+        if (m.message.indexOf("Returned moment: ")> -1 && 
+        ( m.methodName.indexOf("VersionManagementServer::HandleREST_ReconcileOperation") > -1 ||
+         m.methodName.indexOf("GPReconcileVersionAsync::Execute") > -1 
+        ) 
+        )
+        {
+            queryLogs[m.requestID].elapsed = m.elapsed
+            queryLogs[m.requestID].source = m.source.replace(".MapServer", "")
+            queryLogs[m.requestID].user = m.user
+            queryLogs[m.requestID].time = m.time
+            queryLogs[m.requestID].requestID = m.requestID
+            queryLogs[m.requestID].methodName = m.methodName
+ 
+        }
+        
+        if (m.message.indexOf("EndReconcile;") > -1)
+        {
+            queryLogs[m.requestID].gdbVersion = m.message.replace("EndReconcile;","")
+   
+            
+        }
+
+        
+        
+    })
+
+    allMessages = []
+
+     Object.keys(queryLogs).forEach(k =>
+        {
+            const m = queryLogs[k]
+            if (m.methodName)
+                allMessages.push(m)
+              
+        })
+
+
+    
+  console.log ("Filtering messages...") 
+ 
+  allMessages = filterMessages(allMessages)
+  .sort( (m1,m2) => Math.round(m2.elapsed*1000) -Math.round(m1.elapsed*1000))
+
+  allMessages.forEach (m => {  
+            const logRow = document.createElement("tr");
+  
+            const cService = document.createElement("th");
+            cService.textContent = m.source
+
+            const cTime = document.createElement("td");
+            cTime.textContent =  new Date(m.time).toLocaleString()
+
+            const cUser = document.createElement("td");
+            cUser.textContent = m.user
+
+            const cVersion = document.createElement("td");
+            cVersion.textContent = m.gdbVersion 
+           
+            const cMethodName = document.createElement("td");
+            cMethodName.textContent = m.methodName         
+
+            const cRequestId = document.createElement("td");
+            cRequestId.textContent = m.requestID 
+  
+            const cTotalTime = document.createElement("td");
+            cTotalTime.textContent = numberWithCommas(Math.round(m.elapsed*1000))
+            const cLog = document.createElement("td");
+            cLog.textContent = "..."
+            cLog.title = "Click to copy full reconcile log"
+            cLog.fullLog = m.message;
+            cLog.addEventListener("click", e=> {navigator.clipboard.writeText(e.target.fullLog); alert("Copied to clipboard")})
+        
+            //cLog.fullLog = m.payLoad;
+            //cLog.title = m.payLoad + "\nClick to copy"
+           // cLog.addEventListener("click", e=> {navigator.clipboard.writeText(e.target.fullLog); e.target.selectionStart = 0; e.target.selectionEnd = e.target.value.length;
+            //    alert("Copied to clipboard")  })
+            logRow.appendChild (cService)
+            logRow.appendChild (cTime)
+            logRow.appendChild (cUser)
+            logRow.appendChild (cVersion)
+            logRow.appendChild (cMethodName)
+            logRow.appendChild (cRequestId)
+            logRow.appendChild (cTotalTime)
+ 
+            logRow.appendChild (cLog) 
+            tblResult.appendChild(logRow)
+  });
+  
+    addCSV(allMessages)
+
+
+
+}
+async function loadQueryLogs () {
+
+//build table
+const tblResult = document.getElementById("tblResult");
+//clear
+while(tblResult.firstChild) tblResult.removeChild(tblResult.firstChild)
+    
+
+parameters.service = cmbService.options[cmbService.selectedIndex].text
+
+
+let mins = document.getElementById("txtAge").value  //query logs for the last 30 minutes
+
+
+console.log(`Querying query logs for ${parameters.service} for the last ${mins} minutes ...`)
+
+    //startTime is the most recent
+    //endTime is the oldest
+
+     
+ //page query the admin log , search for /applyEdits logs by methodname
+  let allMessages = await adminLogQueryWithPaging(mins, parameters.service, [17002,100004], "", "FINE", "layers/")
+
+
+  while(tblResult.firstChild) tblResult.removeChild(tblResult.firstChild)
+
+    let i =0;
+    
+    const header = document.createElement("tr");
+    const cService = document.createElement("th");
+    cService.textContent = "Source"
+    const cTime = document.createElement("th");
+    cTime.textContent = "Time"
+    const cUser = document.createElement("th");
+    cUser.textContent = "User"
+    const cVersion = document.createElement("th");
+    cVersion.textContent = "Version"
+    const cMethodName = document.createElement("th");
+    cMethodName.textContent = "MethodName"
+    const cTotalTime = document.createElement("th");
+    cTotalTime.title  = "Total time query took"
+    cTotalTime.textContent = "Total Time (ms)"
+
+    const cWhere = document.createElement("th");
+    cWhere.textContent = "Where clause"
+    const cGeometry = document.createElement("th");
+    cGeometry.textContent = "Geometry/Extent"
+
+    const cLog = document.createElement("th");
+    cLog.textContent = "query payload"
+    header.appendChild (cService)
+    header.appendChild (cTime)
+    header.appendChild (cUser)
+    header.appendChild (cVersion)
+    header.appendChild (cMethodName)
+    header.appendChild (cTotalTime)
+
+    header.appendChild (cWhere)
+    header.appendChild (cGeometry)
+    header.appendChild (cLog) 
+    tblResult.appendChild(header)
+
+    //build out the dictionary, key is request id, value is another dictionary
+    const queryLogs = {}
+    
+    allMessages.forEach (m => {
+
+        if (!queryLogs[m.requestID])
+            queryLogs[m.requestID] = {}
+        //get elapsed
+        if (m.message.indexOf("REST request successfully processed. Response size is ") > -1)
+        {
+            queryLogs[m.requestID].elapsed = m.elapsed
+            queryLogs[m.requestID].source = m.source.replace(".MapServer", "")
+            queryLogs[m.requestID].user = m.user
+            queryLogs[m.requestID].time = m.time
+            queryLogs[m.requestID].requestID = m.requestID
+
+        }
+        
+        if (m.message.indexOf("GraphicFeatureServer::HandleRESTRequest ## inputJSON = ") > -1)
+        {
+            queryLogs[m.requestID].message = m.message.replace("GraphicFeatureServer::HandleRESTRequest ## inputJSON = ","")
+            const queryPayload = JSON.parse(queryLogs[m.requestID].message)
+            queryLogs[m.requestID].gdbVersion = queryPayload.gdbVersion
+            queryLogs[m.requestID].methodName = m.methodName;
+            queryLogs[m.requestID].where = queryPayload.where
+            queryLogs[m.requestID].geometry = JSON.stringify(queryPayload.geometry)
+            
+        }
+
+        
+        
+    })
+
+    allMessages = []
+
+     Object.keys(queryLogs).forEach(k =>
+        {
+            const m = queryLogs[k]
+            allMessages.push(m)
+              
+        })
+
+
+    
+  console.log ("Filtering messages...") 
+ 
+  allMessages = filterMessages(allMessages)
+  .sort( (m1,m2) => Math.round(m2.elapsed*1000) -Math.round(m1.elapsed*1000))
+
+  allMessages.forEach (m => {  
+            const logRow = document.createElement("tr");
+  
+            const cService = document.createElement("th");
+            cService.textContent = m.source
+
+            const cTime = document.createElement("td");
+            cTime.textContent =  new Date(m.time).toLocaleString()
+
+            const cUser = document.createElement("td");
+            cUser.textContent = m.user
+
+            const cVersion = document.createElement("td");
+            cVersion.textContent = m.gdbVersion 
+           
+            const cMethodName = document.createElement("td");
+            cMethodName.textContent = m.methodName 
+
+            const cWhere = document.createElement("td");
+            cWhere.textContent = m.where 
+
+            const cGeometry = document.createElement("td");
+            cGeometry.textContent = m.geometry
+            const buildGeoPython = `
+def make_poly(array):
+    json = dict(hasZ=False, hasM=False, rings=array)
+    return arcpy.AsShape(json, esri_json=True)
+
+g = ${m.geometry}
+if 'rings' in g:
+    arcpy.CopyFeatures_management(make_poly(g['rings']), 'memory/foo')
+else:
+    verts = [[[g['xmin'], g['ymin']], [g['xmin'], g['ymax']], [g['xmax'
+             ], g['ymax']], [g['xmax'], g['ymin']]]]
+    arcpy.CopyFeatures_management(make_poly(verts), 'memory/foo')
+
+            `
+            cGeometry.pythonCode = buildGeoPython
+               //cLog.fullLog = m.payLoad;
+            cGeometry.title =  "\nClick to copy python code to generate geometry"
+            cGeometry.addEventListener("click", e=> {navigator.clipboard.writeText(e.target.pythonCode); alert("Copied to clipboard")})
+
+            const cTotalTime = document.createElement("td");
+            cTotalTime.textContent = numberWithCommas(Math.round(m.elapsed*1000))
+            const cLog = document.createElement("td");
+            const cLogText = document.createElement("input")
+            cLogText.type = "text"
+            cLogText.style = "width:400px"
+            cLogText.value =  m.message
+            cLogText.readOnly= true;
+            cLog.appendChild(cLogText)
+         
+            logRow.appendChild (cService)
+            logRow.appendChild (cTime)
+            logRow.appendChild (cUser)
+            logRow.appendChild (cVersion)
+            logRow.appendChild (cMethodName)
+            logRow.appendChild (cTotalTime)
+            logRow.appendChild (cWhere)
+            logRow.appendChild (cGeometry)
+            logRow.appendChild (cLog) 
+            tblResult.appendChild(logRow)
+  });
+  
+    addCSV(allMessages)
+
+}
+
+
 async function loadSQLLogs () {
 
     //build table
@@ -1034,6 +1391,10 @@ function numberWithCommas(x) {
     btnDownloadLogs.disabled = true
 
 
+    const btnReconcileLogs = document.getElementById("btnReconcileLogs");
+    btnReconcileLogs.addEventListener("click", e => reconcileLogs())
+    btnReconcileLogs.disabled = true
+
     const btnSQLLogs = document.getElementById("btnSQLLogs");
     btnSQLLogs.addEventListener("click", e => loadSQLLogs())
     btnSQLLogs.disabled = true
@@ -1043,6 +1404,10 @@ function numberWithCommas(x) {
     btnApplyEditsLogs.addEventListener("click", e => loadApplyEditsLogs())
     btnApplyEditsLogs.disabled = true
 
+     
+    const btnQueryLogs = document.getElementById("btnQueryLogs");
+    btnQueryLogs.addEventListener("click", e => loadQueryLogs())
+    btnQueryLogs.disabled = true
 
     const btnAR = document.getElementById("btnAR");
     btnAR.addEventListener("click", e => loadAttributeRules())
@@ -1094,6 +1459,10 @@ function numberWithCommas(x) {
         cMethod.textContent = "Method"
         const cRequestId = document.createElement("th");
         cRequestId.textContent = "RequestId"
+        const cCode = document.createElement("th");
+        cCode.textContent = "Code"
+        const cLevel = document.createElement("th");
+        cLevel.textContent = "Level"
         const cElapsedMS = document.createElement("th");
         cElapsedMS.textContent = "Elapsed (ms)"
         const cLog = document.createElement("th");
@@ -1103,6 +1472,9 @@ function numberWithCommas(x) {
         header.appendChild (cUser)
         header.appendChild (cMethod)
         header.appendChild (cRequestId)
+        header.appendChild (cCode)
+        header.appendChild (cLevel)
+
         header.appendChild (cElapsedMS)
         header.appendChild (cLog) 
         tblResult.appendChild(header)
@@ -1118,6 +1490,10 @@ function numberWithCommas(x) {
             cMethod.textContent = m.methodName
             const cRequestId = document.createElement("td");
             cRequestId.textContent = m.requestID
+            const cCode = document.createElement("td");
+            cCode.textContent = m.code
+            const cLevel = document.createElement("td");
+            cLevel.textContent = m.type
             const cElapsedMS = document.createElement("td");
             cElapsedMS.textContent = m.elapsed
             const cLog = document.createElement("td");
@@ -1128,6 +1504,8 @@ function numberWithCommas(x) {
             logRow.appendChild (cUser)
             logRow.appendChild (cMethod)
             logRow.appendChild (cRequestId)
+            logRow.appendChild (cCode)
+            logRow.appendChild (cLevel)
             logRow.appendChild (cElapsedMS)
             logRow.appendChild (cLog) 
             tblResult.appendChild(logRow)

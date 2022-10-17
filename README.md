@@ -84,16 +84,16 @@ To install on IIS follow these steps: This server assume your machine name where
 - Under action click Add 
 - under file extension type `.mjs` and under MIME Type write `application/javascript`
 - Restart IIS
-- In c:\inetpub\wwwroot\log edit the `index.html` and find this line of code
-- Update the JSON object with the correct URL, for example if your webadaptor is utilitynetwork.esri.com make sure you update that in both the portal and referer. 
+- (OPTIONAL only change when your webadaptor is not /portal) In c:\inetpub\wwwroot\log edit the `index.html` and find this line of code
+- Update the JSON object with the correct URL, for example if your webadaptor is https://utilitynetwork.esri.com/portal set the "portal" to be that. You don't have to update the referer it will be automatically calculated it.  
 
 ```js
 let parameters = {
         "user": "unadmin",
         "password": "",
-        "portal": "https://utilitynetwork.esri.com/portal",
+        "portal": "",
         "service": "",
-        "referer": "https://utilitynetwork.esri.com/log"
+        "referer": ""
     }
     ```
 - Save the HTML and then visit `https://utilitynetwork.esri.com/log` put in your username and password and login to use the parser
