@@ -26,11 +26,14 @@ export class AdminLog {
         const level =  logLevel
         const filterType="json"
         const token = this.token
- 
-        const filter = {
+        
+        let filter = {
             "codes": codes,
             "services": serviceName
         }
+        //reset filter if nothing is passed, this will return admin crashes too
+        if (codes?.length == 0 && serviceName == "*")
+            filter = {};
       
         let queryLogUrl = url + `&token=${token}&level=${level}&filterType=${filterType}&filter=${encodeURIComponent(JSON.stringify(filter))}&pageSize=${pageSize}`
         if (startTime != null)

@@ -44,9 +44,9 @@
     </tr>
     <tr>
 
-        <td>Start Time</td>
+        <td title = "Newer date goes here">Start Time</td>
         <td><input id = 'txtStartTime' type = 'text'></td>
-        <td>End Time</td>
+        <td title = "Older date goes here">End Time</td>
         <td colspan =3><input id = 'txtEndTime' type = 'text'></td>
     </tr>
     <tr>
@@ -56,8 +56,11 @@
         <td>RequestID</td>
         <td colspan =3><input id = 'txtRequestId' type = 'text'></td>
     </tr>
+</table>
+
+<table> 
     <tr>
-        <td colspan = 6>
+        <td colspan = 9>
             <button id = 'btnTraceLogs'>Trace Logs</button> 
             <button id = 'btnValidateLogs'>Validate Logs</button> 
             <button id = 'btnUpdateSubnetworkLogs'>Update Subnetwork Logs</button>
@@ -66,11 +69,12 @@
             <button id = 'btnApplyEditsLogs'>ApplyEdits Logs</button>
             <button id = 'btnQueryLogs'>Query Logs</button>
             <button id = 'btnReconcileLogs'>Reconcile Logs</button>
+            <button id = 'btnstopEditingLogs'>StopEditing Logs</button>
             <button id = 'btnDownloadLogs'>Raw Logs</button>
         </td>
-      
+        
     </tr>
-
+    <tr><td colspan=9><small>Elapsed time is in minutes:seconds:milliseconds</small></td></tr>
     </table>
 
     <table id = 'tblResult' border =1 cellpadding = 4 cellspacing = 4 style="text-align:left">
@@ -104,6 +108,14 @@
     const txtPassword = document.getElementById("txtPassword")
 
     btnLogin.addEventListener("click", () => init())
+
+    function msToMinSecMs(millis) {
+        const minutes = Math.floor(millis / 60000);
+        const seconds = Math.floor(((millis % 60000) / 1000))
+        const miliseconds =Math.floor( ((millis % 60000) % 1000)  )
+        return minutes + ":" + (seconds < 10 ? '0' : '') + seconds + "." +  (miliseconds < 10 ? '0' : '') + miliseconds
+}
+
     async function init() {
         try {
 
@@ -154,6 +166,7 @@
         document.getElementById("btnQueryLogs").disabled = false 
         document.getElementById("btnDownloadLogs").disabled = false 
         document.getElementById("btnReconcileLogs").disabled = false 
+        document.getElementById("btnstopEditingLogs").disabled = false 
         
 
         }
@@ -194,7 +207,7 @@
             delete newMessage.machine;
             delete newMessage.type;
             delete newMessage.code;
-            delete newMessage.requestID;
+            //delete newMessage.requestID;
             delete newMessage.process;
             delete newMessage.thread;
             newMessage.elapsedms = parseInt (parseFloat(newMessage.elapsed) * 1000)
@@ -214,6 +227,15 @@
                 let res1 = re1.exec(m.message)
                 if (res1 && res1.length  > 0)
                     newMessage.traceType = res1[0].replace("Trace Type: ","")
+
+  
+                let x ;
+                x = /Version name:.*,/.exec(m.message);
+                if (x && x.length > 0) newMessage.versionName = x[0].replace("Version name:", "").replace(",", "")
+
+                x = /Moment:.*\r\n/.exec(m.message);
+                if (x && x.length > 0) newMessage.moment = x[0].replace("Moment:", "").replace("\r\n", "") * 1000000
+   
  
             }
             catch(ex){
@@ -237,20 +259,29 @@
         cUser.textContent = "User"
         const cMethod = document.createElement("th");
         cMethod.textContent = "Method"
+        const cVersion = document.createElement("th");
+        cVersion.textContent = "Version"
+        const cMoment = document.createElement("th");
+        cMoment.textContent = "Moment"
         const cElapsedMS = document.createElement("th");
-        cElapsedMS.textContent = "Elapsed (ms)"
+        cElapsedMS.textContent = "Elapsed"
         const cTraceType = document.createElement("th");
         cTraceType.textContent = "Trace Type"
         const cTraceTime = document.createElement("th");
         cTraceTime.textContent = "Trace Time"
+        const cRequestId = document.createElement("th");
+        cRequestId.textContent = "RequestId"
         const cLog = document.createElement("th");
         cLog.textContent = "Full Log"
         header.appendChild (cService)
         header.appendChild (cTime)
         header.appendChild (cUser)
         header.appendChild (cMethod)
+        header.appendChild (cVersion)
+        header.appendChild (cMoment)
         header.appendChild (cTraceType)
         header.appendChild (cTraceTime)
+        header.appendChild (cRequestId)
         header.appendChild (cElapsedMS)
 
         header.appendChild (cLog) 
@@ -266,12 +297,17 @@
             const cMethod = document.createElement("td");
             cMethod.textContent = m.methodName
             const cElapsedMS = document.createElement("td");
-            cElapsedMS.textContent = m.elapsedms
+            cElapsedMS.textContent = msToMinSecMs(m.elapsedms)
             const cTraceType = document.createElement("td");
             cTraceType.textContent = m.traceType
             const cTraceTime = document.createElement("td");
-            cTraceTime.textContent = m.traceTime
-
+            cTraceTime.textContent = msToMinSecMs(m.traceTime)
+            const cRequestId = document.createElement("td");
+            cRequestId.textContent = m.requestID
+            const cVersion = document.createElement("td");
+            cVersion.textContent = m.versionName 
+            const cMoment = document.createElement("td");
+            cMoment.textContent = m.moment
             const cLog = document.createElement("td");
             cLog.textContent = "..."
             cLog.fullLog = m.message;
@@ -280,8 +316,11 @@
             logRow.appendChild (cTime)
             logRow.appendChild (cUser)
             logRow.appendChild (cMethod)
+            logRow.appendChild (cVersion)
+            logRow.appendChild (cMoment)
             logRow.appendChild (cTraceType)
             logRow.appendChild (cTraceTime)
+            logRow.appendChild (cRequestId)
             logRow.appendChild (cElapsedMS)
 
             logRow.appendChild (cLog) 
@@ -309,7 +348,7 @@
   console.log(`Querying validate logs for ${parameters.service} for the last ${mins} minutes ...`)
     
     let buildStrings = []
-    buildStrings.push("The network is built. ")
+    //buildStrings.push("The network is built. ") uncomment for old servers
     buildStrings.push(    "Network built:  ")
     let allMessages = [];    
     for (let i = 0; i < buildStrings.length;i ++ ) {
@@ -331,17 +370,30 @@
                     //The network is built. 0.093 seconds (4.982 total) - 29 MB memory
                     //Network built:  0.056 seconds (0.359 total) - 0 MB memory   
                 //let re = /The network is built. [-+]?([0-9]*\.[0-9]+|[0-9]+) seconds \([-+]?([0-9]*\.[0-9]+|[0-9]+) total\)/;
-                let re = new RegExp(`${buildString}[-+]?([0-9]*\\.[0-9]+|[0-9]+) seconds \\([-+]?([0-9]*\\.[0-9]+|[0-9]+) total\\)`)
+                
+                
+                //get extent
+                
+                let x ;
+                x = /Extent:.*\r\n/.exec(m.message);
+                if (x && x.length > 0) m.extent = x[0].replace("Extent:", "").replace("\r\n", "")
+                x = /Version name:.*\r\n/.exec(m.message);
+                if (x && x.length > 0) m.versionName = x[0].replace("Version name:", "").replace("\r\n", "")
 
+                let re = new RegExp(`${buildString}[-+]?([0-9]*\\.[0-9]+|[0-9]+) seconds \\([-+]?([0-9]*\\.[0-9]+|[0-9]+) total\\)`)
+                
                 let res = re.exec(m.message)
+
                 if (res && res.length  > 1)
                     m.elapsed = res[2]
-                
+                    
                     return m;
                 }
                 catch(ex){
                     return m;
                 }
+
+
             })
 
             allMessages.push(...allMessagesNew);
@@ -350,7 +402,96 @@
     }
   
 
-   await populateMessages(allMessages)
+
+
+
+
+
+     //sort messages
+                
+    allMessages = filterMessages (allMessages).map(m => {
+            const newMessage = Object.assign({}, m);
+            delete newMessage.machine;
+            delete newMessage.type;
+            delete newMessage.code;
+            //delete newMessage.requestID;
+            delete newMessage.process;
+            delete newMessage.thread;
+            newMessage.elapsedms = parseInt (parseFloat(newMessage.elapsed) * 1000)
+            newMessage.time = new Date(newMessage.time).toLocaleString()
+            delete newMessage.elapsed
+            return newMessage;
+        })
+        .sort( (m1,m2) => m2.elapsedms - m1.elapsedms)
+         
+        //clear
+        while(tblResult.firstChild) tblResult.removeChild(tblResult.firstChild)
+
+        const header = document.createElement("tr");
+        const cService = document.createElement("th");
+        cService.textContent = "Source"
+        const cTime = document.createElement("th");
+        cTime.textContent = "Time"
+        const cUser = document.createElement("th");
+        cUser.textContent = "User"
+        const cMethod = document.createElement("th");
+        cMethod.textContent = "Method"
+        const cExtent = document.createElement("th");
+        cExtent.textContent = "Extent"
+        const cVersion = document.createElement("th");
+        cVersion.textContent = "Version"
+        const cElapsedMS = document.createElement("th");
+        cElapsedMS.textContent = "Elapsed "
+        const cRequestId = document.createElement("th");
+        cRequestId.textContent = "RequestId"
+        const cLog = document.createElement("th");
+        cLog.textContent = "Full Log"
+
+        header.appendChild (cService)
+        header.appendChild (cTime)
+        header.appendChild (cUser)
+        header.appendChild (cMethod)
+        header.appendChild (cExtent)
+        header.appendChild (cVersion)
+        header.appendChild (cElapsedMS)
+        header.appendChild (cRequestId)
+        header.appendChild (cLog) 
+        tblResult.appendChild(header)
+        allMessages.forEach(m => {
+            const logRow = document.createElement("tr");
+            const cService = document.createElement("td");
+            cService.textContent = m.source.replace(".MapServer", "")
+            const cTime = document.createElement("td");
+            cTime.textContent = m.time
+            const cUser = document.createElement("td");
+            cUser.textContent = m.user
+            const cMethod = document.createElement("td");
+            cMethod.textContent = m.methodName
+            const cExtent = document.createElement("td");
+            cExtent.textContent = m.extent
+            const cVersion = document.createElement("td");
+            cVersion.textContent = m.versionName
+            const cElapsedMS = document.createElement("td");
+            cElapsedMS.textContent = msToMinSecMs(m.elapsedms)
+            const cRequestId = document.createElement("td");
+            cRequestId.textContent = m.requestID;
+            const cLog = document.createElement("td");
+            cLog.textContent = "..."
+            cLog.fullLog = m.message;
+            cLog.addEventListener("click", e=> {navigator.clipboard.writeText(e.target.fullLog); alert("Copied to clipboard")})
+            logRow.appendChild (cService)
+            logRow.appendChild (cTime)
+            logRow.appendChild (cUser)
+            logRow.appendChild (cMethod)
+            logRow.appendChild (cExtent)
+            logRow.appendChild (cVersion)
+            logRow.appendChild (cElapsedMS)
+            logRow.appendChild (cRequestId)
+            logRow.appendChild (cLog) 
+            tblResult.appendChild(logRow)
+        })
+
+   //await populateMessages(allMessages)
    addCSV(allMessages) 
    
 }
@@ -381,7 +522,7 @@ async function loadUpdateSubnetworkLogs () {
             delete newMessage.machine;
             delete newMessage.type;
             delete newMessage.code;
-            delete newMessage.requestID;
+            //delete newMessage.requestID;
             delete newMessage.process;
             delete newMessage.thread;
          
@@ -432,9 +573,11 @@ async function loadUpdateSubnetworkLogs () {
         const cMethod = document.createElement("th");
         cMethod.textContent = "Method"
         const cElapsedMS = document.createElement("th");
-        cElapsedMS.textContent = "Elapsed (ms)"
+        cElapsedMS.textContent = "Elapsed "
         const cSubnetworkName = document.createElement("th");
         cSubnetworkName.textContent = "Subnetwork Name"
+        const cRequestId = document.createElement("th");
+        cRequestId.textContent = "RequestId"
         const cLog = document.createElement("th");
         cLog.textContent = "Full Log"
         header.appendChild (cService)
@@ -443,7 +586,7 @@ async function loadUpdateSubnetworkLogs () {
         header.appendChild (cMethod)
         header.appendChild (cSubnetworkName)
         header.appendChild (cElapsedMS)
-
+        header.appendChild (cRequestId) 
         header.appendChild (cLog) 
         tblResult.appendChild(header)
         allMessages.forEach(m => {
@@ -457,10 +600,11 @@ async function loadUpdateSubnetworkLogs () {
             const cMethod = document.createElement("td");
             cMethod.textContent = m.methodName
             const cElapsedMS = document.createElement("td");
-            cElapsedMS.textContent = m.elapsedms
+            cElapsedMS.textContent =msToMinSecMs(m.elapsedms)
             const cSubnetworkName = document.createElement("td");
             cSubnetworkName.textContent = m.subnetworkName
-
+            const cRequestId = document.createElement("td");
+            cRequestId.textContent = m.requestID
             const cLog = document.createElement("td");
             cLog.textContent = "..."
             cLog.fullLog = m.message;
@@ -471,7 +615,7 @@ async function loadUpdateSubnetworkLogs () {
             logRow.appendChild (cMethod)
             logRow.appendChild (cSubnetworkName)
             logRow.appendChild (cElapsedMS)
-
+            logRow.appendChild (cRequestId)
             logRow.appendChild (cLog) 
             tblResult.appendChild(logRow)
         })
@@ -615,16 +759,16 @@ async function loadAttributeRules () {
                 cOccurrence.textContent = rule["Occurrence"]
              
                 const cTotalCost = document.createElement("td");
-                cTotalCost.textContent = rule["Total Cost (ms)"]
+                cTotalCost.textContent = msToMinSecMs(rule["Total Cost (ms)"])
 
                 const cMaxExecutionTime = document.createElement("td");
-                cMaxExecutionTime.textContent = rule["Max execution time (ms)"]
+                cMaxExecutionTime.textContent = msToMinSecMs(rule["Max execution time (ms)"])
 
                 const cMaxGuid = document.createElement("td");
                 cMaxGuid.textContent = rule["Max GUID"] 
 
                 const cMinExecutionTime = document.createElement("td");
-                cMinExecutionTime.textContent =  rule["Min execution time (ms)"]
+                cMinExecutionTime.textContent =  msToMinSecMs(rule["Min execution time (ms)"])
                 
                 logRow.appendChild (cAttributeRule)
                 logRow.appendChild (cTotalCost)
@@ -762,7 +906,7 @@ console.log(`Querying applyEdits logs for ${parameters.service} for the last ${m
     cIds.textContent = "LayerIds"
     const cTotalTime = document.createElement("th");
     cTotalTime.title  = "Total time applyEdits took"
-    cTotalTime.textContent = "Total Time (ms)"
+    cTotalTime.textContent = "Total Time"
     const cLog = document.createElement("th");
     cLog.textContent = "applyEdits payload"
     header.appendChild (cService)
@@ -840,7 +984,7 @@ console.log(`Querying applyEdits logs for ${parameters.service} for the last ${m
             cIds.textContent = m.ids 
 
             const cTotalTime = document.createElement("td");
-            cTotalTime.textContent = numberWithCommas(Math.round(m.elapsed*1000))
+            cTotalTime.textContent = msToMinSecMs(m.elapsed*1000 )   
             const cLog = document.createElement("td");
             const cLogText = document.createElement("input")
             cLogText.type = "text"
@@ -866,6 +1010,176 @@ console.log(`Querying applyEdits logs for ${parameters.service} for the last ${m
 
 }
 
+
+
+
+async function stopEditingLogs () {
+
+//build table
+const tblResult = document.getElementById("tblResult");
+//clear
+while(tblResult.firstChild) tblResult.removeChild(tblResult.firstChild)
+    
+
+parameters.service = cmbService.options[cmbService.selectedIndex].text
+
+
+let mins = document.getElementById("txtAge").value  //query logs for the last 30 minutes
+
+
+console.log(`Querying stop editing logs for ${parameters.service} for the last ${mins} minutes ...`)
+
+    //startTime is the most recent
+    //endTime is the oldest
+
+     
+ //page query the admin log , search for /stopediting logs by methodname
+  let allMessages = await adminLogQueryWithPaging(mins, parameters.service, [102003,17003], "", "DEBUG")
+
+
+  while(tblResult.firstChild) tblResult.removeChild(tblResult.firstChild)
+
+    let i =0;
+    
+    const header = document.createElement("tr");
+    const cService = document.createElement("th");
+    cService.textContent = "Source"
+    const cTime = document.createElement("th");
+    cTime.textContent = "Time"
+    const cUser = document.createElement("th");
+    cUser.textContent = "User"
+    const cVersion = document.createElement("th");
+    cVersion.textContent = "Version"
+    const cMethodName = document.createElement("th");
+    cMethodName.textContent = "MethodName"
+    const cRequestId = document.createElement("th");
+    cRequestId.textContent = "RequestId"
+    const cTotalTime = document.createElement("th");
+    cTotalTime.title  = "Total time stopEditing took"
+    cTotalTime.textContent = "Total Time"
+ 
+
+    const cLog = document.createElement("th");
+    cLog.textContent = "StopEditing details"
+    header.appendChild (cService)
+    header.appendChild (cTime)
+    header.appendChild (cUser)
+    header.appendChild (cVersion)
+    header.appendChild (cMethodName)
+    header.appendChild (cRequestId)
+    header.appendChild (cTotalTime)
+ 
+    header.appendChild (cLog) 
+    tblResult.appendChild(header)
+
+    //build out the dictionary, key is request id, value is another dictionary
+    const queryLogs = {}
+    //sort by time
+    allMessages = allMessages.sort ( (m1, m2) => m2.time - m1.time )
+    allMessages.forEach (m => {
+
+        if (!queryLogs[m.requestID])
+            queryLogs[m.requestID] = {"message": "Time,Method,Elapsed_ms,Message"}
+
+        queryLogs[m.requestID].message += "\r\n" + m.time + "," + m.methodName + "," + Math.round(m.elapsed*1000) + "," + m.message 
+
+        //get elapsed
+        //check for async (method GPReconcileVersionAsync::Execute)
+        //sync
+        //VersionManagementServer::HandleREST_ReconcileOperation
+        //message Returned moment: 
+        if  ( m.methodName.indexOf("VersionManagementServer::HandleREST_StopEditingOperation") > -1  
+           && m.message.indexOf("End StopEditing") > -1
+        )
+        {
+            queryLogs[m.requestID].elapsed = m.elapsed
+            queryLogs[m.requestID].source = m.source.replace(".MapServer", "")
+            queryLogs[m.requestID].user = m.user
+            queryLogs[m.requestID].time = m.time
+            queryLogs[m.requestID].requestID = m.requestID
+            queryLogs[m.requestID].methodName = m.methodName.replace("VersionManagementServer::HandleREST_","")
+ 
+        }
+        
+        if (m.message.indexOf("In WorkspaceInfo::GetVersionedWorkspaceInfo : Cache hit for versionOrBranchName=") > -1)
+        {   
+            let v =  m.message.replace(": In WorkspaceInfo::GetVersionedWorkspaceInfo : Cache hit for versionOrBranchName=","")
+            v = v.substr(v.indexOf("{"))
+            queryLogs[m.requestID].gdbVersion =v
+    
+        }
+
+        
+        
+    })
+
+    allMessages = []
+
+     Object.keys(queryLogs).forEach(k =>
+        {
+            const m = queryLogs[k]
+            if (m.methodName)
+                allMessages.push(m)
+              
+        })
+
+
+    
+  console.log ("Filtering messages...") 
+ 
+  allMessages = filterMessages(allMessages)
+  .sort( (m1,m2) => Math.round(m2.elapsed*1000) -Math.round(m1.elapsed*1000))
+
+  allMessages.forEach (m => {  
+            const logRow = document.createElement("tr");
+  
+            const cService = document.createElement("th");
+            cService.textContent = m.source
+
+            const cTime = document.createElement("td");
+            cTime.textContent =  new Date(m.time).toLocaleString()
+
+            const cUser = document.createElement("td");
+            cUser.textContent = m.user
+
+            const cVersion = document.createElement("td");
+            cVersion.textContent = m.gdbVersion 
+           
+            const cMethodName = document.createElement("td");
+            cMethodName.textContent = m.methodName         
+
+            const cRequestId = document.createElement("td");
+            cRequestId.textContent = m.requestID 
+  
+            const cTotalTime = document.createElement("td");
+            cTotalTime.textContent =  msToMinSecMs(m.elapsed*1000 )
+            const cLog = document.createElement("td");
+            cLog.textContent = "..."
+            cLog.title = "Click to copy full stopediting log"
+            cLog.fullLog = m.message;
+            cLog.addEventListener("click", e=> {navigator.clipboard.writeText(e.target.fullLog); alert("Copied to clipboard")})
+        
+            //cLog.fullLog = m.payLoad;
+            //cLog.title = m.payLoad + "\nClick to copy"
+           // cLog.addEventListener("click", e=> {navigator.clipboard.writeText(e.target.fullLog); e.target.selectionStart = 0; e.target.selectionEnd = e.target.value.length;
+            //    alert("Copied to clipboard")  })
+            logRow.appendChild (cService)
+            logRow.appendChild (cTime)
+            logRow.appendChild (cUser)
+            logRow.appendChild (cVersion)
+            logRow.appendChild (cMethodName)
+            logRow.appendChild (cRequestId)
+            logRow.appendChild (cTotalTime)
+ 
+            logRow.appendChild (cLog) 
+            tblResult.appendChild(logRow)
+  });
+  
+    addCSV(allMessages)
+
+
+
+}
 
 
 
@@ -912,7 +1226,7 @@ console.log(`Querying reconcile logs for ${parameters.service} for the last ${mi
     cRequestId.textContent = "RequestId"
     const cTotalTime = document.createElement("th");
     cTotalTime.title  = "Total time reconcile took"
-    cTotalTime.textContent = "Total Time (ms)"
+    cTotalTime.textContent = "Total Time"
  
 
     const cLog = document.createElement("th");
@@ -1009,7 +1323,7 @@ console.log(`Querying reconcile logs for ${parameters.service} for the last ${mi
             cRequestId.textContent = m.requestID 
   
             const cTotalTime = document.createElement("td");
-            cTotalTime.textContent = numberWithCommas(Math.round(m.elapsed*1000))
+            cTotalTime.textContent =  msToMinSecMs(m.elapsed*1000 )
             const cLog = document.createElement("td");
             cLog.textContent = "..."
             cLog.title = "Click to copy full reconcile log"
@@ -1037,6 +1351,8 @@ console.log(`Querying reconcile logs for ${parameters.service} for the last ${mi
 
 
 }
+
+
 async function loadQueryLogs () {
 
 //build table
@@ -1074,11 +1390,13 @@ console.log(`Querying query logs for ${parameters.service} for the last ${mins} 
     cUser.textContent = "User"
     const cVersion = document.createElement("th");
     cVersion.textContent = "Version"
+    const cMoment = document.createElement("th");
+    cMoment.textContent = "Moment"
     const cMethodName = document.createElement("th");
     cMethodName.textContent = "MethodName"
     const cTotalTime = document.createElement("th");
     cTotalTime.title  = "Total time query took"
-    cTotalTime.textContent = "Total Time (ms)"
+    cTotalTime.textContent = "Total Time"
 
     const cWhere = document.createElement("th");
     cWhere.textContent = "Where clause"
@@ -1091,6 +1409,7 @@ console.log(`Querying query logs for ${parameters.service} for the last ${mins} 
     header.appendChild (cTime)
     header.appendChild (cUser)
     header.appendChild (cVersion)
+    header.appendChild (cMoment)
     header.appendChild (cMethodName)
     header.appendChild (cTotalTime)
 
@@ -1122,6 +1441,7 @@ console.log(`Querying query logs for ${parameters.service} for the last ${mins} 
             queryLogs[m.requestID].message = m.message.replace("GraphicFeatureServer::HandleRESTRequest ## inputJSON = ","")
             const queryPayload = JSON.parse(queryLogs[m.requestID].message)
             queryLogs[m.requestID].gdbVersion = queryPayload.gdbVersion
+            queryLogs[m.requestID].moment = queryPayload.historicMoment
             queryLogs[m.requestID].methodName = m.methodName;
             queryLogs[m.requestID].where = queryPayload.where
             queryLogs[m.requestID].geometry = JSON.stringify(queryPayload.geometry)
@@ -1163,6 +1483,9 @@ console.log(`Querying query logs for ${parameters.service} for the last ${mins} 
             const cVersion = document.createElement("td");
             cVersion.textContent = m.gdbVersion 
            
+            const cMoment = document.createElement("td");
+            cMoment.textContent = m.moment 
+           
             const cMethodName = document.createElement("td");
             cMethodName.textContent = m.methodName 
 
@@ -1191,7 +1514,7 @@ else:
             cGeometry.addEventListener("click", e=> {navigator.clipboard.writeText(e.target.pythonCode); alert("Copied to clipboard")})
 
             const cTotalTime = document.createElement("td");
-            cTotalTime.textContent = numberWithCommas(Math.round(m.elapsed*1000))
+            cTotalTime.textContent = msToMinSecMs(m.elapsed*1000 )  
             const cLog = document.createElement("td");
             const cLogText = document.createElement("input")
             cLogText.type = "text"
@@ -1204,6 +1527,7 @@ else:
             logRow.appendChild (cTime)
             logRow.appendChild (cUser)
             logRow.appendChild (cVersion)
+            logRow.appendChild (cMoment)
             logRow.appendChild (cMethodName)
             logRow.appendChild (cTotalTime)
             logRow.appendChild (cWhere)
@@ -1287,11 +1611,11 @@ async function loadSQLLogs () {
         const cVersion = document.createElement("th");
         cVersion.textContent = "Version"
         const cQueryTime = document.createElement("th");
-        cQueryTime.textContent = "Query Time (ms)"
+        cQueryTime.textContent = "Query Time"
         cQueryTime.title  = "includes search + data access nextRow"
         const cTotalTime = document.createElement("th");
         cTotalTime.title  = "Total time the cursor was opened"
-        cTotalTime.textContent = "Total Time (ms)"
+        cTotalTime.textContent = "Total Time"
         const cLog = document.createElement("th");
         cLog.textContent = "Full SQL"
         header.appendChild (cService)
@@ -1334,9 +1658,9 @@ async function loadSQLLogs () {
                     cVersion.textContent = m.message.substr( idxVersion + 9, idxNext - idxVersion - 9 )
                 }
                 const cQueryTime = document.createElement("td");
-                cQueryTime.textContent = numberWithCommas(m.totalExecutionElapsed)
+                cQueryTime.textContent = msToMinSecMs(m.totalExecutionElapsed )// numberWithCommas(m.totalExecutionElapsed)
                 const cTotalTime = document.createElement("td");
-                cTotalTime.textContent = numberWithCommas(Math.round(m.elapsed*1000))
+                cTotalTime.textContent = msToMinSecMs(m.elapsed*1000) //numberWithCommas(Math.round(m.elapsed*1000))
                 const cLog = document.createElement("td");
                 const cLogText = document.createElement("input")
                 cLogText.type = "text"
@@ -1394,6 +1718,12 @@ function numberWithCommas(x) {
     const btnReconcileLogs = document.getElementById("btnReconcileLogs");
     btnReconcileLogs.addEventListener("click", e => reconcileLogs())
     btnReconcileLogs.disabled = true
+
+    const btnstopEditingLogs = document.getElementById("btnstopEditingLogs");
+    btnstopEditingLogs.addEventListener("click", e => stopEditingLogs())
+    btnstopEditingLogs.disabled = true
+ 
+
 
     const btnSQLLogs = document.getElementById("btnSQLLogs");
     btnSQLLogs.addEventListener("click", e => loadSQLLogs())
@@ -1464,7 +1794,7 @@ function numberWithCommas(x) {
         const cLevel = document.createElement("th");
         cLevel.textContent = "Level"
         const cElapsedMS = document.createElement("th");
-        cElapsedMS.textContent = "Elapsed (ms)"
+        cElapsedMS.textContent = "Elapsed"
         const cLog = document.createElement("th");
         cLog.textContent = "Full Log"
         header.appendChild (cService)
@@ -1495,7 +1825,7 @@ function numberWithCommas(x) {
             const cLevel = document.createElement("td");
             cLevel.textContent = m.type
             const cElapsedMS = document.createElement("td");
-            cElapsedMS.textContent = m.elapsed
+            cElapsedMS.textContent =msToMinSecMs(m.elapsed)
             const cLog = document.createElement("td");
             cLog.textContent = m.message 
            // cLog.addEventListener("click", e=> {navigator.clipboard.writeText(e.target.fullLog); alert("Copied to clipboard")})
@@ -1520,7 +1850,7 @@ function numberWithCommas(x) {
             delete newMessage.machine;
             delete newMessage.type;
             delete newMessage.code;
-            delete newMessage.requestID;
+            //delete newMessage.requestID;
             delete newMessage.process;
             delete newMessage.thread;
             newMessage.elapsedms = parseInt (parseFloat(newMessage.elapsed) * 1000)
@@ -1545,7 +1875,7 @@ function numberWithCommas(x) {
         const cMethod = document.createElement("th");
         cMethod.textContent = "Method"
         const cElapsedMS = document.createElement("th");
-        cElapsedMS.textContent = "Elapsed (ms)"
+        cElapsedMS.textContent = "Elapsed"
         const cLog = document.createElement("th");
         cLog.textContent = "Full Log"
         header.appendChild (cService)
@@ -1566,7 +1896,7 @@ function numberWithCommas(x) {
             const cMethod = document.createElement("td");
             cMethod.textContent = m.methodName
             const cElapsedMS = document.createElement("td");
-            cElapsedMS.textContent = m.elapsedms
+            cElapsedMS.textContent = msToMinSecMs(m.elapsedms)
             const cLog = document.createElement("td");
             cLog.textContent = "..."
             cLog.fullLog = m.message;
