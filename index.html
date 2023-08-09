@@ -89,7 +89,7 @@
      
 
     let parameters = {
-        "user": "unadmin",
+        "user": "",
         "password": "",
         "portal": "",  //https://utilitynetwork.esri.com/portal set your portal url webadaptor if not /portal
         "service": "",
@@ -113,7 +113,7 @@
         const minutes = Math.floor(millis / 60000);
         const seconds = Math.floor(((millis % 60000) / 1000))
         const miliseconds =Math.floor( ((millis % 60000) % 1000)  )
-        return minutes + ":" + (seconds < 10 ? '0' : '') + seconds + "." +  (miliseconds < 10 ? '0' : '') + miliseconds
+        return minutes + ":" + (seconds < 10 ? '0' : '') + seconds + "." +  (miliseconds < 10 ? '00' : '') + (miliseconds >= 10 && miliseconds <=99 ? '0' : '') + miliseconds
 }
 
     async function init() {
@@ -347,21 +347,19 @@
 
   console.log(`Querying validate logs for ${parameters.service} for the last ${mins} minutes ...`)
     
-    let buildStrings = []
-    //buildStrings.push("The network is built. ") uncomment for old servers
-    buildStrings.push(    "Network built:  ")
-    let allMessages = [];    
-    for (let i = 0; i < buildStrings.length;i ++ ) {
+  
+    let allMessages = [];     
             //clear
             while(tblResult.firstChild) tblResult.removeChild(tblResult.firstChild)
-            
-            //in various releases the strings have changed, gotta query all 
-            let buildString = buildStrings[i];
+             
             
             //-1 && m.message.indexOf("The network is built.") > -1 && m.methodName == 'BuildEngineLog')
             //page query the admin log
             // prior to 11.1 let allMessages = await adminLogQueryWithPaging(mins, parameters.service, [102003], "The network is built.", "VERBOSE")
-            let allMessagesNew = await adminLogQueryWithPaging(mins, parameters.service, [102003], buildString, "VERBOSE")
+            let allMessagesNew = await adminLogQueryWithPaging(mins, parameters.service, [102003,100002], "", "DEBUG")
+            
+            allMessagesNew = allMessagesNew.filter(m => 	m.message.indexOf( "String request successfully processed.") >= 0  ||  m.message.indexOf( "End ValidateNetworkTopology") >= 0 || m.message.indexOf( "Network built.") >= 0 )
+ 
             //Network built:
             //validate logs missing elapsed populate it
             allMessagesNew = allMessagesNew.map( m => {
@@ -380,15 +378,22 @@
                 x = /Version name:.*\r\n/.exec(m.message);
                 if (x && x.length > 0) m.versionName = x[0].replace("Version name:", "").replace("\r\n", "")
 
-                let re = new RegExp(`${buildString}[-+]?([0-9]*\\.[0-9]+|[0-9]+) seconds \\([-+]?([0-9]*\\.[0-9]+|[0-9]+) total\\)`)
-                
+                let re = new RegExp(`Network built. [-+]?([0-9]*\\.[0-9]+|[0-9]+) seconds \\([-+]?([0-9]*\\.[0-9]+|[0-9]+) total\\)`)
                 let res = re.exec(m.message)
-
+                
+                if (!res)
+                {
+                        //try with th other string
+                     re = new RegExp(`Network built:  [-+]?([0-9]*\\.[0-9]+|[0-9]+) seconds \\([-+]?([0-9]*\\.[0-9]+|[0-9]+) total\\)`)
+                     res = re.exec(m.message)
+                }
                 if (res && res.length  > 1)
-                    m.elapsed = res[2]
+                    m.validateTime = res[2]
                     
                     return m;
                 }
+                
+
                 catch(ex){
                     return m;
                 }
@@ -396,15 +401,66 @@
 
             })
 
-            allMessages.push(...allMessagesNew);
+            //build out the dictionary, key is request id, value is another dictionary
+            const queryLogs = {}
+            //sort by time
+            allMessages = allMessagesNew.sort ( (m1, m2) => m2.time - m1.time )
+            allMessages.forEach (m => {
+
+                if (!queryLogs[m.requestID])
+                    queryLogs[m.requestID] = {"message": "Time,Method,Elapsed_ms,Message"}
+
+                queryLogs[m.requestID].message += "\r\n" + m.time + "," + m.methodName + "," + Math.round(m.elapsed*1000) + "," + m.message 
+
+                //get elapsed
+                //check for async (method GPReconcileVersionAsync::Execute)
+                //sync
+                //VersionManagementServer::HandleREST_ReconcileOperation
+                //message Returned moment: 
+                if (m.message.indexOf("End ValidateNetworkTopology")> -1 || m.message.indexOf("String request successfully processed.") > -1 )
+                /*
+                ( m.methodName.indexOf("UtilityNetworkServer::HandleREST_ValidateNetworkTopologyOperation") > -1 ||
+                m.methodName.indexOf("GPServer.ExecuteJob.ValidateNetworkTopology") > -1 
+                ) 
+                */
+                
+                {
+                    queryLogs[m.requestID].elapsed = m.elapsed
+                    queryLogs[m.requestID].source = m.source.replace(".MapServer", "")
+                    queryLogs[m.requestID].user = m.user
+                    queryLogs[m.requestID].time = m.time
+                    queryLogs[m.requestID].requestID = m.requestID
+                    queryLogs[m.requestID].methodName = m.methodName
+
+                    
+                }
 
 
-    }
+                if(m.validateTime) {
+                    queryLogs[m.requestID].validateTime = m.validateTime
+                    queryLogs[m.requestID].versionName = m.versionName
+                    queryLogs[m.requestID].extent = m.extent
+                }
+                 
+
+                
+                
+            })
+
+            allMessages = []
+
+            Object.keys(queryLogs).forEach(k =>
+                {
+                    const m = queryLogs[k]
+                    if (m.validateTime && m.elapsed)
+                        allMessages.push(m)
+                    
+                }) 
+         
+
+          //  allMessages.push(...allMessagesNew);
+
   
-
-
-
-
 
 
      //sort messages
@@ -417,6 +473,7 @@
             //delete newMessage.requestID;
             delete newMessage.process;
             delete newMessage.thread;
+            newMessage.validateTime = parseInt (parseFloat(newMessage.validateTime) * 1000)
             newMessage.elapsedms = parseInt (parseFloat(newMessage.elapsed) * 1000)
             newMessage.time = new Date(newMessage.time).toLocaleString()
             delete newMessage.elapsed
@@ -440,8 +497,13 @@
         cExtent.textContent = "Extent"
         const cVersion = document.createElement("th");
         cVersion.textContent = "Version"
+
+        const cValidateTime = document.createElement("th");
+        cValidateTime.textContent = "Validate Time "
+
         const cElapsedMS = document.createElement("th");
         cElapsedMS.textContent = "Elapsed "
+
         const cRequestId = document.createElement("th");
         cRequestId.textContent = "RequestId"
         const cLog = document.createElement("th");
@@ -453,6 +515,7 @@
         header.appendChild (cMethod)
         header.appendChild (cExtent)
         header.appendChild (cVersion)
+        header.appendChild (cValidateTime)
         header.appendChild (cElapsedMS)
         header.appendChild (cRequestId)
         header.appendChild (cLog) 
@@ -471,8 +534,13 @@
             cExtent.textContent = m.extent
             const cVersion = document.createElement("td");
             cVersion.textContent = m.versionName
+
+            const cValidateTime = document.createElement("td");
+            cValidateTime.textContent = msToMinSecMs(m.validateTime)
+            
             const cElapsedMS = document.createElement("td");
             cElapsedMS.textContent = msToMinSecMs(m.elapsedms)
+
             const cRequestId = document.createElement("td");
             cRequestId.textContent = m.requestID;
             const cLog = document.createElement("td");
@@ -485,6 +553,7 @@
             logRow.appendChild (cMethod)
             logRow.appendChild (cExtent)
             logRow.appendChild (cVersion)
+            logRow.appendChild (cValidateTime)
             logRow.appendChild (cElapsedMS)
             logRow.appendChild (cRequestId)
             logRow.appendChild (cLog) 
@@ -1777,7 +1846,7 @@ function numberWithCommas(x) {
         const tblResult = document.getElementById("tblResult");
         //clear
         while(tblResult.firstChild) tblResult.removeChild(tblResult.firstChild)
-
+        let totalElapsed = 0;
         const header = document.createElement("tr");
         const cService = document.createElement("th");
         cService.textContent = "Source"
@@ -1825,7 +1894,8 @@ function numberWithCommas(x) {
             const cLevel = document.createElement("td");
             cLevel.textContent = m.type
             const cElapsedMS = document.createElement("td");
-            cElapsedMS.textContent =msToMinSecMs(m.elapsed)
+            cElapsedMS.textContent =msToMinSecMs(m.elapsed) 
+            totalElapsed+=m.elapsed
             const cLog = document.createElement("td");
             cLog.textContent = m.message 
            // cLog.addEventListener("click", e=> {navigator.clipboard.writeText(e.target.fullLog); alert("Copied to clipboard")})
@@ -1839,7 +1909,16 @@ function numberWithCommas(x) {
             logRow.appendChild (cElapsedMS)
             logRow.appendChild (cLog) 
             tblResult.appendChild(logRow)
-        })
+        } 
+        
+        )
+        const logRow = document.createElement("tr");
+        const cTotalElapsedMS = document.createElement("td");
+        cTotalElapsedMS.colSpan = 9
+        cTotalElapsedMS.textContent = `Total Elapsed ${msToMinSecMs(totalElapsed)}`
+        logRow.appendChild(cTotalElapsedMS)
+        tblResult.appendChild(logRow)
+
     }
     async function populateMessages(allTheMessages) {
 
@@ -1913,7 +1992,7 @@ function numberWithCommas(x) {
 
 
     async function adminLogQueryWithPaging(mins, theService, code, messageFilter, level, methodFilter = ""){
-        const topLogCount = 1000;
+        const topLogCount = 2000;
         let stop = false;
         const prg = document.createTextNode("Loading.... 0%");
         const btn = document.createElement("button")
