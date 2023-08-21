@@ -93,7 +93,9 @@
         "password": "",
         "portal": "",  //https://utilitynetwork.esri.com/portal set your portal url webadaptor if not /portal
         "service": "",
-        "referer": "" //set the referer to be the same url you are running this from https://utilitynetwork.esri.com/log 
+        "referer": "", //set the referer to be the same url you are running this from https://utilitynetwork.esri.com/log,
+        "server": undefined //when there are multiple federate server, update the correct one here.  
+    
     }
 
     if (parameters.portal === "") parameters.portal = window.location.origin + "/portal"

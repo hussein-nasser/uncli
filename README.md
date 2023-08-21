@@ -86,6 +86,7 @@ To install on IIS follow these steps: This server assume your machine name where
 - Restart IIS
 - (OPTIONAL only change when your webadaptor is not /portal) In c:\inetpub\wwwroot\log edit the `index.html` and find this line of code
 - Update the JSON object with the correct URL, for example if your webadaptor is https://utilitynetwork.esri.com/portal set the "portal" to be that. You don't have to update the referer it will be automatically calculated it.  
+- (Optional) if you have multiple federated server , you have to set the correct one you want to query admin api for in the `"server"` parameter below.
 
 ```js
 let parameters = {
@@ -93,7 +94,8 @@ let parameters = {
         "password": "",
         "portal": "",
         "service": "",
-        "referer": ""
+        "referer": "",
+        "server": undefined
     }
     ```
 - Save the HTML and then visit `https://utilitynetwork.esri.com/log` put in your username and password and login to use the parser

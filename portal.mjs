@@ -46,7 +46,7 @@ export class Portal{
             catch(ex){
                 logger.error(ex?.status?.message)
                 console.error(ex?.status?.errno)
-                reject(`Failed to connect to portal, check your username or password or add --verify false if you are using a self-signed certificate. Normally a production system should have a valid certificate signed by a CA and you should NOT disable verification in that case.) \n\n${ex}`)
+                reject(`Failed to connect to portal, check your username or password or add --verify false if you are using a self-signed certificate. Normally a production system should have a valid certificate signed by a CA and you should NOT disable verification in that case.) \n\n${JSON.stringify(ex)}`)
             }
 
             }
