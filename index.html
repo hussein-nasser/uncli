@@ -87,7 +87,7 @@
         import  logger  from "./logger.mjs"
  
      
-
+ 
     let parameters = {
         "user": "",
         "password": "",
@@ -978,6 +978,8 @@ console.log(`Querying applyEdits logs for ${parameters.service} for the last ${m
     const cTotalTime = document.createElement("th");
     cTotalTime.title  = "Total time applyEdits took"
     cTotalTime.textContent = "Total Time"
+    const cRequestId = document.createElement("th");
+    cRequestId.textContent = "RequestId"
     const cLog = document.createElement("th");
     cLog.textContent = "applyEdits payload"
     header.appendChild (cService)
@@ -986,6 +988,7 @@ console.log(`Querying applyEdits logs for ${parameters.service} for the last ${m
     header.appendChild (cVersion)
     header.appendChild (cIds)
     header.appendChild (cTotalTime)
+    header.appendChild (cRequestId) 
     header.appendChild (cLog) 
     tblResult.appendChild(header)
 
@@ -1055,7 +1058,11 @@ console.log(`Querying applyEdits logs for ${parameters.service} for the last ${m
             cIds.textContent = m.ids 
 
             const cTotalTime = document.createElement("td");
-            cTotalTime.textContent = msToMinSecMs(m.elapsed*1000 )   
+            cTotalTime.textContent = msToMinSecMs(m.elapsed*1000 )  
+             
+            const cRequestId = document.createElement("td");
+            cRequestId.textContent = m.requestID
+
             const cLog = document.createElement("td");
             const cLogText = document.createElement("input")
             cLogText.type = "text"
@@ -1073,6 +1080,7 @@ console.log(`Querying applyEdits logs for ${parameters.service} for the last ${m
             logRow.appendChild (cVersion)
             logRow.appendChild (cIds)
             logRow.appendChild (cTotalTime)
+            logRow.appendChild (cRequestId) 
             logRow.appendChild (cLog) 
             tblResult.appendChild(logRow)
   });
@@ -1474,6 +1482,9 @@ console.log(`Querying query logs for ${parameters.service} for the last ${mins} 
     const cGeometry = document.createElement("th");
     cGeometry.textContent = "Geometry/Extent"
 
+    const cRequestId = document.createElement("th");
+    cRequestId.textContent = "RequestId"
+
     const cLog = document.createElement("th");
     cLog.textContent = "query payload"
     header.appendChild (cService)
@@ -1486,6 +1497,7 @@ console.log(`Querying query logs for ${parameters.service} for the last ${mins} 
 
     header.appendChild (cWhere)
     header.appendChild (cGeometry)
+    header.appendChild (cRequestId)
     header.appendChild (cLog) 
     tblResult.appendChild(header)
 
@@ -1565,6 +1577,11 @@ console.log(`Querying query logs for ${parameters.service} for the last ${mins} 
 
             const cGeometry = document.createElement("td");
             cGeometry.textContent = m.geometry
+
+            
+            const cRequestId = document.createElement("td");
+            cRequestId.textContent = m.requestID
+
             const buildGeoPython = `
 def make_poly(array):
     json = dict(hasZ=False, hasM=False, rings=array)
@@ -1603,6 +1620,7 @@ else:
             logRow.appendChild (cTotalTime)
             logRow.appendChild (cWhere)
             logRow.appendChild (cGeometry)
+            logRow.appendChild (cRequestId)
             logRow.appendChild (cLog) 
             tblResult.appendChild(logRow)
   });
@@ -1687,6 +1705,10 @@ async function loadSQLLogs () {
         const cTotalTime = document.createElement("th");
         cTotalTime.title  = "Total time the cursor was opened"
         cTotalTime.textContent = "Total Time"
+
+        const cRequestId = document.createElement("th");
+        cRequestId.textContent = "RequestId"
+
         const cLog = document.createElement("th");
         cLog.textContent = "Full SQL"
         header.appendChild (cService)
@@ -1695,6 +1717,7 @@ async function loadSQLLogs () {
         header.appendChild (cVersion)
         header.appendChild (cQueryTime)
         header.appendChild (cTotalTime)
+        header.appendChild (cRequestId) 
         header.appendChild (cLog) 
         tblResult.appendChild(header)
 
@@ -1732,6 +1755,9 @@ async function loadSQLLogs () {
                 cQueryTime.textContent = msToMinSecMs(m.totalExecutionElapsed )// numberWithCommas(m.totalExecutionElapsed)
                 const cTotalTime = document.createElement("td");
                 cTotalTime.textContent = msToMinSecMs(m.elapsed*1000) //numberWithCommas(Math.round(m.elapsed*1000))
+                const cRequestId = document.createElement("td");
+                cRequestId.textContent = m.requestID
+             
                 const cLog = document.createElement("td");
                 const cLogText = document.createElement("input")
                 cLogText.type = "text"
@@ -1750,6 +1776,7 @@ async function loadSQLLogs () {
                 logRow.appendChild (cVersion)
                 logRow.appendChild (cQueryTime)
                 logRow.appendChild (cTotalTime)
+                logRow.appendChild (cRequestId) 
                 logRow.appendChild (cLog) 
                 tblResult.appendChild(logRow)
                 
@@ -1993,8 +2020,16 @@ function numberWithCommas(x) {
     }
 
 
+    //paging works from newer message walking to the oldest message
+    //start time must be less than end time 
+    //you specify startTime, t10 and endtime t1
+    //you get back messages from t10 to t5,
+    //you then start start time at t5 and end time at t1
+    //you then get messages from t5 to t3
+    //you then set the start time at t3 and end time at t1 
+    //finally you get all messages between t3 and t1 and hasmore false.
     async function adminLogQueryWithPaging(mins, theService, code, messageFilter, level, methodFilter = ""){
-        const topLogCount = 2000;
+        let topLogCount = 2000;
         let stop = false;
         const prg = document.createTextNode("Loading.... 0%");
         const btn = document.createElement("button")
@@ -2026,16 +2061,26 @@ function numberWithCommas(x) {
         let jsonRes = await result.json()
         let allMessages = [].concat(jsonRes.logMessages) 
         allMessages = allMessages.filter(m => m.message.indexOf(messageFilter) > -1 && m.methodName.indexOf(methodFilter) > -1)
+     
+        let oldStart = undefined;
+        let newStartTime = undefined;
         while (jsonRes.hasMore && !stop)
         {  
             //start paging
-            prg.textContent = "Loading ... " + parseInt((( (startTime - endTime) -  (jsonRes.endTime - endTime) ) /((startTime - endTime)))*100) + "%"
-            logger.info(`Aggregating messages... total so far ${allMessages.length} entries but more left, pulling logs between ${new Date(jsonRes.endTime)} and ${new Date(endTime)}`)
-            result= await adminLog.query(code, services, topLogCount, jsonRes.endTime, endTime, level)
+            oldStart = newStartTime;
+            newStartTime = jsonRes.endTime 
+            //we keep getting the same starttime, time to move towards end..
+             if (oldStart == newStartTime)
+                 newStartTime-=1;
+ 
+            prg.textContent = "Loading ... " + Math.round(100*parseFloat((( (startTime - endTime) -  (newStartTime - endTime) ) /((startTime - endTime)))*100),2)/100+ "%"
+            logger.info(`Aggregating messages... total so far ${allMessages.length} entries but more left, pulling logs between ${new Date(newStartTime)} and ${new Date(endTime)} ${newStartTime}-${endTime}`)
+            result= await adminLog.query(code, services, topLogCount, newStartTime, endTime, level)
             jsonRes = await result.json()
-  
+            
             allMessages = allMessages.concat(jsonRes.logMessages.filter(m => m.message.indexOf(messageFilter) > -1 && m.methodName.indexOf(methodFilter) > -1))
         }
+        logger.info(`Completed aggregation total messages ${allMessages.length}`);
 
         return allMessages
 
