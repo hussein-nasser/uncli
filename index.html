@@ -70,6 +70,7 @@
             <button id = 'btnQueryLogs'>Query Logs</button>
             <button id = 'btnReconcileLogs'>Reconcile Logs</button>
             <button id = 'btnstopEditingLogs'>StopEditing Logs</button>
+            <button id = 'btnWaitLogs'>Wait Logs</button>
             <button id = 'btnDownloadLogs'>Raw Logs</button>
         </td>
         
@@ -169,6 +170,7 @@
         document.getElementById("btnDownloadLogs").disabled = false 
         document.getElementById("btnReconcileLogs").disabled = false 
         document.getElementById("btnstopEditingLogs").disabled = false 
+        document.getElementById("btnWaitLogs").disabled = false 
         
 
         }
@@ -890,7 +892,8 @@ async function downloadLogs () {
      .map(m => {
             const newMessage = Object.assign({}, m);
             newMessage.time = new Date(newMessage.time).toLocaleString()
-            newMessage.elapsed = Math.round(newMessage.elapsed * 1000) ;
+            if (newMessage.source != "Server" && newMessage.code != 8000)
+                newMessage.elapsed = Math.round(newMessage.elapsed * 1000) ;
             return newMessage;
         })
       
@@ -1259,6 +1262,123 @@ console.log(`Querying stop editing logs for ${parameters.service} for the last $
 
 
 }
+
+
+
+
+
+
+
+async function waitLogs () {
+
+//build table
+const tblResult = document.getElementById("tblResult");
+//clear
+while(tblResult.firstChild) tblResult.removeChild(tblResult.firstChild)
+    
+
+parameters.service = cmbService.options[cmbService.selectedIndex].text
+
+
+let mins = document.getElementById("txtAge").value  //query logs for the last 30 minutes
+
+
+console.log(`Querying wait logs for ${parameters.service} for the last ${mins} minutes ...`)
+
+    //startTime is the most recent
+    //endTime is the oldest
+
+     
+ //page query the admin log , search for /stopediting logs by methodname //parameters.service
+  let allMessages = await adminLogQueryWithPaging(mins, "Server", [7615,8000], "", "INFO")
+  
+  if (parameters.service != "(All Services)")
+  allMessages = allMessages.filter(m => m.message.indexOf(parameters.service) > 0)
+
+  while(tblResult.firstChild) tblResult.removeChild(tblResult.firstChild)
+
+    let i =0;
+    
+    const header = document.createElement("tr");
+    const cService = document.createElement("th");
+    cService.textContent = "Source"
+    const cTime = document.createElement("th");
+    cTime.textContent = "Time"
+    const cMachine = document.createElement("th");
+    cMachine.textContent = "Machine"
+    const cMessage = document.createElement("th");
+    cMessage.textContent = "Message"
+    const cRequestId = document.createElement("th");
+    cRequestId.textContent = "RequestId"
+    const cTotalTime = document.createElement("th");
+    cTotalTime.title  = "Total wait time"
+    cTotalTime.textContent = "Total Time"
+ 
+
+    const cLog = document.createElement("th");
+    cLog.textContent = "Wait time details"
+    header.appendChild (cService)
+    header.appendChild (cTime)
+    header.appendChild (cMachine)
+    header.appendChild (cMessage)
+    header.appendChild (cRequestId)
+    header.appendChild (cTotalTime)
+ 
+    header.appendChild (cLog) 
+    tblResult.appendChild(header)
+ 
+  console.log ("Filtering messages...") 
+ 
+  allMessages = filterMessages(allMessages)
+  .sort( (m1,m2) => Math.round(m2.elapsed) -Math.round(m1.elapsed))
+
+  allMessages.forEach (m => {  
+            const logRow = document.createElement("tr");
+  
+            const cService = document.createElement("th");
+            cService.textContent = m.source
+
+            const cTime = document.createElement("td");
+            cTime.textContent =  new Date(m.time).toLocaleString()
+
+            const cMachine = document.createElement("td");
+            cMachine.textContent = m.machine
+  
+            const cMessage = document.createElement("td");
+            cMessage.textContent = m.message         
+
+            const cRequestId = document.createElement("td");
+            cRequestId.textContent = m.requestID 
+  
+            const cTotalTime = document.createElement("td");
+            cTotalTime.textContent =  msToMinSecMs(m.elapsed  )
+            const cLog = document.createElement("td");
+            cLog.textContent = "..."
+            cLog.title = "Click to copy full wait log"
+            cLog.fullLog = m.message;
+            cLog.addEventListener("click", e=> {navigator.clipboard.writeText(e.target.fullLog); alert("Copied to clipboard")})
+        
+            //cLog.fullLog = m.payLoad;
+            //cLog.title = m.payLoad + "\nClick to copy"
+           // cLog.addEventListener("click", e=> {navigator.clipboard.writeText(e.target.fullLog); e.target.selectionStart = 0; e.target.selectionEnd = e.target.value.length;
+            //    alert("Copied to clipboard")  })
+            logRow.appendChild (cService)
+            logRow.appendChild (cTime)
+            logRow.appendChild (cMachine)
+            logRow.appendChild (cMessage)
+            logRow.appendChild (cRequestId)
+            logRow.appendChild (cTotalTime)
+ 
+            logRow.appendChild (cLog) 
+            tblResult.appendChild(logRow)
+  });
+  
+    addCSV(allMessages)
+
+
+
+}
+
 
 
 
@@ -1820,8 +1940,13 @@ function numberWithCommas(x) {
     const btnstopEditingLogs = document.getElementById("btnstopEditingLogs");
     btnstopEditingLogs.addEventListener("click", e => stopEditingLogs())
     btnstopEditingLogs.disabled = true
- 
 
+
+    
+    const btnWait = document.getElementById("btnWaitLogs");
+    btnWait.addEventListener("click", e => waitLogs())
+    btnWait.disabled = true
+     
 
     const btnSQLLogs = document.getElementById("btnSQLLogs");
     btnSQLLogs.addEventListener("click", e => loadSQLLogs())
@@ -2057,6 +2182,10 @@ function numberWithCommas(x) {
         
         if (theService == "(All Services)")
             services = "*"
+
+        if (theService == "Server")
+            services = "Server"
+
         let result= await adminLog.query(code, services, topLogCount, startTime ,endTime , level)
         let jsonRes = await result.json()
         let allMessages = [].concat(jsonRes.logMessages) 

@@ -26,11 +26,18 @@ export class AdminLog {
         const level =  logLevel
         const filterType="json"
         const token = this.token
+
+
         
         let filter = {
             "codes": codes,
-            "services": serviceName
         }
+
+        //query server logs
+        if (serviceName != "Server")
+            filter ["services"] = serviceName
+
+
         //reset filter if nothing is passed, this will return admin crashes too
         if (codes?.length == 0 && serviceName == "*")
             filter = {};
