@@ -7,7 +7,7 @@ import { AdminLog } from "./adminlog.mjs"
 import  logger  from "./logger.mjs"
 import  fetch  from "node-fetch"
 //update version
-let version = "0.0.78";
+let version = "0.0.79";
 const GENERATE_TOKEN_TIME_MIN = 30;
 
 let rl = null;
@@ -176,7 +176,7 @@ const inputs = {
             "export subnetworks --deleted": "Export all subnetworks with ACK that are deleted ",
             "updateisconnected": "Run update is connected ",
             
-            "count": "Lists the number of rows in all feature layers.",
+            "count": "Lists the number of rows in all feature layers and tables.",
             "count --system": "Lists the number of rows in system layers.",
             "connect --service": "Connects to the another service",
             "tracelogs --age <minutes>": "Lists utility network trace summary logs for the last x minutes (requires admin)",
@@ -748,8 +748,8 @@ const inputs = {
         let totalRows =0;
         serviceDef.layers.forEach (l=> Object.keys(l).forEach (k => !layerProperties.includes(k) ? delete l[k] : ""))  
         //all layers except system ones
-        const allLayers = serviceDef.layers.filter(l => l.type === 'Feature Layer' && !systemLayers.find(a=> a.id === l.id ))
-  
+        let allLayers = serviceDef.layers.filter(l => l.type === 'Feature Layer' && !systemLayers.find(a=> a.id === l.id ))
+        allLayers = allLayers.concat(serviceDef.tables);
 
         for (let i = 0; i < allLayers.length; i++ )      
         {
