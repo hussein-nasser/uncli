@@ -443,6 +443,13 @@ export class UtilityNetwork {
 
             
 
+            if (this.layerDefinition.systemLayers.dirtyObjectsTableId)
+                systemLayers.push({
+                    "id": this.layerDefinition.systemLayers.dirtyObjectsTableId,
+                    "name": "Dirty Objects",
+                    "type": "Feature Layer",
+                    "geometryType": "None" 
+                })
 
             if (this.layerDefinition.systemLayers.pointErrorsLayerId)
             systemLayers.push({
@@ -815,8 +822,109 @@ export class UtilityNetwork {
              
         }
 
+        startReading(versionGuid, sessionGuid){
+            let thisObj = this;    
+            let ar = thisObj.featureServiceUrl.split("/");
+            ar[ar.length-1]="VersionManagementServer";
+
+            let url = ar.join("/") + "/versions/" + versionGuid.replace("{","").replace("}", "") + "/startReading"
+              let vmsJson = {
+                 f: "json",
+                 sessionId: sessionGuid,
+                 token: this.token
+             } 
+           
+           return makeRequest({method:'POST', params: vmsJson, url: url })
+            
+        }
+
+
         
-        versions() {
+        stopReading(versionGuid, sessionGuid){
+            let thisObj = this;    
+            let ar = thisObj.featureServiceUrl.split("/");
+            ar[ar.length-1]="VersionManagementServer";
+
+            let url = ar.join("/") + "/versions/" + versionGuid.replace("{","").replace("}", "") + "/stopReading"
+              let vmsJson = {
+                 f: "json",
+                 sessionId: sessionGuid,
+                 token: this.token
+             } 
+           
+           return makeRequest({method:'POST', params: vmsJson, url: url })
+            
+        }
+
+
+        
+        startEditing(versionGuid, sessionGuid){
+            
+            let thisObj = this;    
+            let ar = thisObj.featureServiceUrl.split("/");
+            ar[ar.length-1]="VersionManagementServer";
+
+            let url = ar.join("/") + "/versions/" + versionGuid.replace("{","").replace("}", "") + "/startEditing"
+              let vmsJson = {
+                 f: "json",
+                 sessionId: sessionGuid,
+                 token: this.token
+             } 
+           
+           return makeRequest({method:'POST', params: vmsJson, url: url })
+            
+        }
+
+
+        
+        stopEditing(versionGuid, sessionGuid,saveEdits=true){
+            let thisObj = this;    
+            let ar = thisObj.featureServiceUrl.split("/");
+            ar[ar.length-1]="VersionManagementServer";
+
+            let url = ar.join("/") + "/versions/" + versionGuid.replace("{","").replace("}", "") + "/stopEditing"
+              let vmsJson = {
+                 f: "json",
+                 sessionId: sessionGuid,
+                 saveEdits:saveEdits,
+                 token: this.token
+             } 
+           
+           return makeRequest({method:'POST', params: vmsJson, url: url })
+            
+        }
+
+        
+
+        async reconcile (versionGuid, withPost = false, abortIfConflicts=false, conflictDetection=true, async = false ) {
+
+            //startReading use the version guid as a session id
+            await this.startReading(versionGuid,versionGuid );
+            await this.startEditing(versionGuid,versionGuid );
+            let thisObj = this;    
+            let ar = thisObj.featureServiceUrl.split("/");
+            ar[ar.length-1]="VersionManagementServer";
+
+            let url = ar.join("/") + "/versions/" + versionGuid.replace("{","").replace("}", "") + "/reconcile"
+              let vmsJson = {
+                 f: "json",
+                 sessionId: versionGuid,
+                 withPost: withPost, 
+                 async: async,
+                 token: this.token
+             } 
+            
+           const result = makeRequest({method:'POST', params: vmsJson, url: url })
+            
+        /*  if (async == false){
+           await this.stopEditing(versionGuid,versionGuid );
+           await this.stopReading(versionGuid,versionGuid );}*/
+
+           return result;
+
+        }
+
+         versions() {
 
             let thisObj = this;    
             let ar = thisObj.featureServiceUrl.split("/");

@@ -1,2 +1,2 @@
-topology --validate --fishnet
+reconcile --version U136967.MigrateTransm
 exit

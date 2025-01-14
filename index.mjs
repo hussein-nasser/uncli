@@ -175,7 +175,7 @@ const inputs = {
             "export subnetworks --new [--folder]": "Export all subnetworks with ACK that haven't been exported --folder where exported files are saved",
             "export subnetworks --deleted": "Export all subnetworks with ACK that are deleted ",
             "updateisconnected": "Run update is connected ",
-            
+            "versions": "List all versions available to the current logged in user.",
             "count": "Lists the number of rows in all feature layers and tables.",
             "count --system": "Lists the number of rows in system layers.",
             "connect --service": "Connects to the another service",
@@ -227,6 +227,100 @@ const inputs = {
         Object.keys(serviceDef).forEach (k => !serviceProperties.includes(k) ? delete serviceDef[k] : "")
 
         console.table(serviceDef)
+    },
+    
+    "^versions$": async () => {
+        
+        const versions = await un.versions();
+        if (versions.versions.length === 0) {
+            logger.info("No versions found.")
+            return;
+        }
+        const subs = versions.versions.map( (a) =>  {
+                     return  {"versionName": a.versionName, "Id": a.versionId, "guid" : a.versionGuid, "created": a.creationDate, "modified": a.modifiedDate, "access": a.access};
+                     })
+
+        console.table(subs)
+        const rowCount = subs.length;
+        logger.info (`${numberWithCommas(rowCount)} rows returned.`)
+    },
+
+
+    "^reconcile --version": async (input) => {
+        
+        const inputParam = input.match(/--version .*/gm)
+        let versionName = null;
+        if (inputParam != null && inputParam.length > 0)
+            versionName = inputParam[0].replace("--version ", "")
+
+        const versions = await un.versions();
+
+        for (let v = 0; v < versions.versions.length; v++)
+        {   
+            if (versions.versions[v].versionName.toString().toUpperCase() === "SDE.DEFAULT") continue;
+            if (versions.versions[v].versionName.toString().toUpperCase() == versionName.toUpperCase())  {
+                logger.info (`Reconciling version ${versions.versions[v].versionName} ...`)
+
+                const result = await un.reconcile(versions.versions[v].versionGuid, false, false, true, false);
+                logger.info(JSON.stringify(result))
+                break;
+            }
+           
+        }   
+        logger.info (`Reconciled ${versionName}.`)
+    },
+
+    
+    "^reconcile --all$": async () => {
+        
+        const versions = await un.versions();
+
+        for (let v = 0; v < versions.versions.length; v++)
+        {   
+            if (versions.versions[v].versionName.toString().toUpperCase() === "SDE.DEFAULT") continue;
+            logger.info (`Reconciling version ${versions.versions[v].versionName} ...`)
+
+            const result = await un.reconcile(versions.versions[v].versionGuid, false, false, true, false);
+            logger.info(JSON.stringify(result))
+        }   
+        const rowCount = versions.versions.length;
+        logger.info (`Reconciled ${numberWithCommas(rowCount)} versions.`)
+    },
+
+    "^reconcile --all --async$": async () => {
+        //async
+        const versions = await un.versions();
+
+        for (let v = 0; v < versions.versions.length; v++)
+        {   
+            if (versions.versions[v].versionName.toString().toUpperCase() === "SDE.DEFAULT") continue;
+            logger.info (`Reconciling version ${versions.versions[v].versionName} ...`)
+
+            const result = await un.reconcile(versions.versions[v].versionGuid, false, false, true, true);
+            logger.info(JSON.stringify(result))
+        }   
+        const rowCount = versions.versions.length;
+        logger.info (`Reconciled ${numberWithCommas(rowCount)} versions.`)
+    },
+
+    
+    "^versions --disconnect$": async () => {
+        //disconnect all versions
+        const versions = await un.versions();
+
+        for (let v = 0; v < versions.versions.length; v++)
+        {   
+            if (versions.versions[v].versionName.toString().toUpperCase() === "SDE.DEFAULT") continue;
+            logger.info (`Stopping editing on version ${versions.versions[v].versionName} ...`)
+            const g = versions.versions[v].versionGuid
+            let result = await un.stopEditing(g,g);
+            logger.info(JSON.stringify(result))
+            logger.info (`Stopping reading on version ${versions.versions[v].versionName} ...`)
+            result = await un.stopReading(g,g);
+            logger.info(JSON.stringify(result))
+        }   
+        const rowCount = versions.versions.length;
+        logger.info (`Disconnected ${numberWithCommas(rowCount)} versions.`)
     },
     "^subnetworks$": async () => {
         
