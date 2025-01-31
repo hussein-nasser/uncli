@@ -1,2 +1,3 @@
 reconcile --version U136967.MigrateTransm
+update subnetworks --all
 exit

@@ -7,7 +7,7 @@ import { AdminLog } from "./adminlog.mjs"
 import  logger  from "./logger.mjs"
 import  fetch  from "node-fetch"
 //update version
-let version = "0.0.80";
+let version = "0.0.81";
 const GENERATE_TOKEN_TIME_MIN = 30;
 
 let rl = null;
@@ -27,7 +27,8 @@ function parseInput(){
           "--gdbversion",
           "--file",
           "--verify",
-          "--server"
+          "--server",
+          "--proxy"
            ]     
         
       //null marked parmaters are required
@@ -40,7 +41,8 @@ function parseInput(){
           "gdbversion": "SDE.DEFAULT",
           "file": "",
           "verify": "true",
-          "server": undefined
+          "server": undefined,
+          "proxy": undefined
       }
 
       for (let i = 0; i < process.argv.length ; i++){
@@ -53,7 +55,7 @@ function parseInput(){
 
       if (Object.values(params).includes(null))
       {
-        logger.info ("HELP: uncli --portal https://unportal.domain.com/portal --service servicename --user username --password password [--gdbversion* user.version --server  https://federatedserver.domain.com/server --file commandfile* --verify true|false]")    
+        logger.info ("HELP: uncli --portal https://unportal.domain.com/portal --service servicename --user username --password password [--gdbversion* user.version --server  https://federatedserver.domain.com/server --file commandfile* --verify true|false] --proxy http://proxyurl:port")    
         logger.info("--file commandfile is optional and you can pass a path to a file with a list of command to execute. ")
         logger.info("--gdbversion is optional and allows the UN to be opened in that version. When not specified sde.DEFAULT is used.")
         logger.info("--server is optional except when there are more than one federated server sites to the portal. If the portal only has one server it will be selected.")
@@ -1522,7 +1524,16 @@ export async function run (){
     parameters = await parseInput( )
     //set certificate verification 
     const verifyCert = parameters["verify"] === 'true' ? 1 : 0;
+    const proxy = parameters["proxy"]
     process.env['NODE_TLS_REJECT_UNAUTHORIZED'] = verifyCert;
+
+    if (proxy){
+        logger.info(`Using proxy ${proxy}`);
+        process.env['HTTPS_PROXY'] = proxy;
+    }
+
+        
+
     setTimeout( async ()=> await regenerateToken(parameters) , 1000*60*GENERATE_TOKEN_TIME_MIN)
     await connect(parameters)
 }

@@ -1,6 +1,6 @@
 {
   "name": "un-cli",
-  "version": "0.0.80",
+  "version": "0.0.81",
   "description": "Command line interface for working with ArcGIS Utility Network Extension",
   "main": "index.mjs",
   "bin": {
@@ -17,6 +17,7 @@
   "author": "Hussein Nasser",
   "license": "ISC",
   "dependencies": {
+    "https-proxy-agent": "^7.0.6",
     "node-fetch": "^2.6.0"
   }
 }

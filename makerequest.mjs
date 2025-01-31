@@ -1,6 +1,5 @@
+
  
-
-
 export function makeRequest (opts) {
    
    return new Promise(async function (resolve, reject) {
@@ -23,26 +22,43 @@ export function makeRequest (opts) {
            
        if (opts.headers) 
            Object.keys(opts.headers).forEach(  key => headers[key] = opts.headers[key] )
-
-       //console.log(opts)
-
-        let f;
-        try {
  
+        let jsonRes
+        let agent;
+        let f;
+        
+        try {
+            
             let nodeFetch = await import ("node-fetch");
             f = nodeFetch.default;
         }
         catch(ex) {
             f = fetch;
+        } 
+        //set a proxy if one exists 
+          
+        if (process.env['HTTPS_PROXY'])
+            {
+                try {
+                    const HttpsProxyAgent = await import ('https-proxy-agent')
+                    agent = new HttpsProxyAgent.HttpsProxyAgent(process.env['HTTPS_PROXY'])
+                }
+                catch (ex){
+                    agent = undefined;
+                }
+               
+            }
+
+        const options =  {
+            "method" : opts.method,
+             "headers":  headers,
+             "body": params
         }
-         
-        let jsonRes
-        
-       const result = await f(opts.url, {
-           "method" : opts.method,
-            "headers":  headers,
-            "body": params
-       });
+
+        if (agent)
+            options.agent = agent;
+
+        const result = await f(opts.url,options);
 
         jsonRes  = await result.json();
         
