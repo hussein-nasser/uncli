@@ -31,13 +31,10 @@ export function makeRequest (opts) {
             
             let nodeFetch = await import ("node-fetch");
             f = nodeFetch.default;
-        }
-        catch(ex) {
-            f = fetch;
-        } 
+     
         //set a proxy if one exists 
           
-        if (process.env['HTTPS_PROXY'])
+        if (process?.env['HTTPS_PROXY'])
             {
                 try {
                     const HttpsProxyAgent = await import ('https-proxy-agent')
@@ -48,7 +45,10 @@ export function makeRequest (opts) {
                 }
                
             }
-
+        }
+        catch(ex) {
+            f = fetch;
+        } 
         const options =  {
             "method" : opts.method,
              "headers":  headers,
