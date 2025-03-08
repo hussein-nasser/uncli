@@ -14,10 +14,13 @@ npm install -g un-cli
 ## Once installed here is how you connect 
 
 ```bash
-> uncli --portal https://utilitynetwork.esri.com/portal --service NapervilleElectric_SQLServer --user tester --password tester.108 
+> uncli --portal https://utilitynetwork.esri.com/portal --service NapervilleElectric_SQLServer --user tester --password tester.108 --verify true
 ```
+If this fails with a verification error it means you are using a self-signed certificate you can use use --verify false to disable verification but don't use this in production.
 
 ```bash
+
+uncli> help
 
 uncli> help
 ┌───────────────────────────────────────┬──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
@@ -40,10 +43,15 @@ uncli> help
 │       update subnetworks --all        │                                       'Update all dirty subnetworks synchronously'                                       │
 │     update subnetworks --deleted      │                                   'Update all deleted dirty subnetworks synchronously'                                   │
 │   update subnetworks --all --async    │                                      'Update all dirty subnetworks asynchronously'                                       │
-│       export subnetworks --all        │                                            'Export all subnetworks with ACK '                                            │
-│       export subnetworks --new        │                              "Export all subnetworks with ACK that haven't been exported "                               │
+│  export subnetworks --all [--folder]  │                        'Export all subnetworks with ACK --folder where exported files are saved'                         │
+│  export subnetworks --new [--folder]  │           "Export all subnetworks with ACK that haven't been exported --folder where exported files are saved"           │
 │     export subnetworks --deleted      │                                   'Export all subnetworks with ACK that are deleted '                                    │
-│                 count                 │                                    'Lists the number of rows in all feature layers.'                                     │
+│           updateisconnected           │                                                'Run update is connected '                                                │
+│               versions                │                               'List all versions available to the current logged in user.'                               │
+│  reconcile --version <version name>   │                                       'Reconcile the input version synchronously'                                        │
+│            reconcile --all            │                           'Reconcile all versions available to the current user synchronously'                           │
+│        reconcile --all --async        │                          'Reconcile all versions available to the current user asynchronously'                           │
+│                 count                 │                               'Lists the number of rows in all feature layers and tables.'                               │
 │            count --system             │                                       'Lists the number of rows in system layers.'                                       │
 │           connect --service           │                                            'Connects to the another service'                                             │
 │       tracelogs --age <minutes>       │                    'Lists utility network trace summary logs for the last x minutes (requires admin)'                    │

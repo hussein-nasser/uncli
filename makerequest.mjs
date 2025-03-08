@@ -49,6 +49,7 @@ export function makeRequest (opts) {
         catch(ex) {
             f = fetch;
         } 
+        
         const options =  {
             "method" : opts.method,
              "headers":  headers,
