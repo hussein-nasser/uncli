@@ -7,7 +7,7 @@ import { AdminLog } from "./adminlog.mjs"
 import  logger  from "./logger.mjs"
 import  fetch  from "node-fetch"
 //update version
-let version = "0.0.81";
+let version = "0.0.82";
 const GENERATE_TOKEN_TIME_MIN = 30;
 
 let rl = null;
@@ -931,7 +931,7 @@ const inputs = {
 
         const arMessages = allMessages
             .filter(m => m.message.indexOf("Attribute rule execution complete:") > -1)
-            .map (m =>  JSON.parse(m.message.replace("Attribute rule execution complete:", "")))
+            .map (m =>  JSON.parse(decodeHTMLEntities(m.message.replace("Attribute rule execution complete:", ""))))
             .map( m => {
                 m["Elapsed Time (ms)"] =  Math.round(m["Elapsed Time"]*1000000)/1000
                // m["Arcade Evaluation Time:"] = Math.round(m["Arcade Evaluation Time:"]*1000,6)
@@ -1279,7 +1279,7 @@ const inputs = {
 
         const arMessages = allMessages
             .filter(m => m.message.indexOf("Attribute rule execution complete:") > -1)
-            .map (m =>  JSON.parse(m.message.replace("Attribute rule execution complete:", "")))
+            .map (m =>  JSON.parse(decodeHTMLEntities(m.message.replace("Attribute rule execution complete:", ""))))
             .map( m => {
                 m["Elapsed Time (ms)"] =  Math.round(m["Elapsed Time"]*1000000)/1000
                // m["Arcade Evaluation Time:"] = Math.round(m["Arcade Evaluation Time:"]*1000,6)
@@ -1538,6 +1538,19 @@ export async function run (){
     await connect(parameters)
 }
 
+
+function decodeHTMLEntities (x) {
+    const entities = { 
+        '&lt;': '<', 
+        '&gt;': '>', 
+        '&amp;': '&', 
+        '&quot;': '"', 
+        '&apos;': "'" 
+    }; 
+     
+    const y =  x.replace(/&[a-zA-Z0-9#]+;/g, (match) => entities[match] || match); 
+   return y
+}
 
 
 function printFishnet(fishnet) {

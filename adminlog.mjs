@@ -20,6 +20,8 @@ export class AdminLog {
             return fetch;
         }
     }
+ 
+
     async query (codes, serviceName ="*", pageSize = 100000, startTime = null, endTime = null, logLevel = "DEBUG") 
     {   
         const url =  this.adminServerUrl  + "/logs/query?f=pjson"
