@@ -2144,6 +2144,11 @@ function numberWithCommas(x) {
         })
     }
 
+    function decodeHTMLEntities (x) {
+        const decodedString = document.createElement('div');
+        decodedString.innerHTML = x;
+        return decodedString.innerHTML;
+    }
 
     //paging works from newer message walking to the oldest message
     //start time must be less than end time 
@@ -2190,7 +2195,11 @@ function numberWithCommas(x) {
         let jsonRes = await result.json()
         let allMessages = [].concat(jsonRes.logMessages) 
         allMessages = allMessages.filter(m => m.message.indexOf(messageFilter) > -1 && m.methodName.indexOf(methodFilter) > -1)
-     
+        //add decode html 
+        allMessages = allMessages.map(m=> {  
+            m.message = decodeHTMLEntities(m.message)
+            return m
+        })
         let oldStart = undefined;
         let newStartTime = undefined;
         while (jsonRes.hasMore && !stop)
