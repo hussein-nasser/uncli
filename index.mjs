@@ -7,7 +7,7 @@ import { AdminLog } from "./adminlog.mjs"
 import  logger  from "./logger.mjs"
 import  fetch  from "node-fetch"
 //update version
-let version = "0.0.82";
+let version = "0.0.83";
 const GENERATE_TOKEN_TIME_MIN = 30;
 
 let rl = null;
@@ -178,9 +178,14 @@ const inputs = {
             "export subnetworks --deleted": "Export all subnetworks with ACK that are deleted ",
             "updateisconnected": "Run update is connected ",
             "versions": "List all versions available to the current logged in user.",
+            "versions --summary": "Summary of versions.",
+            "versions --unreconciled": "List all versions that haven't been reconciled.",
+            "versions --version <version name>": "List the input version info",
             "reconcile --version <version name>": "Reconcile the input version synchronously",
-            "reconcile --all": "Reconcile all versions available to the current user synchronously",
-            "reconcile --all --async": "Reconcile all versions available to the current user asynchronously",
+            "reconcile --withpost --version <version name>": "Reconcile & Post the input version synchronously, oldest common ancestor first",
+            "reconcile --all": "Reconcile all versions available to the current user synchronously, oldest common ancestor first",
+            "reconcile --all --withpost --async": "Reconcile and post all versions available to the current user asynchronously, oldest common ancestor first",
+            "reconcile --all --async": "Reconcile all versions available to the current user asynchronously, oldest common ancestor first",
             "count": "Lists the number of rows in all feature layers and tables.",
             "count --system": "Lists the number of rows in system layers.",
             "connect --service": "Connects to the another service",
@@ -233,21 +238,98 @@ const inputs = {
 
         console.table(serviceDef)
     },
+
+
     
-    "^versions$": async () => {
+    "^versions --version": async (input) => {
+
         
+        const inputParam = input.match(/--version .*/gm)
+        let versionName = null;
+        if (inputParam != null && inputParam.length > 0)
+            versionName = inputParam[0].replace("--version ", "")
+
+
+        let versions = await un.versions();
+        versions.versions = versions.versions.filter ( v => v.versionName.toString().toUpperCase() == versionName.toUpperCase())
+
+
+        if (versions.versions.length === 0) {
+            logger.info("No versions found.")
+            return;
+        }
+        const subs = versions.versions.sort ( (a,b)=> (a?.commonAncestorDate - b?.commonAncestorDate) ). map( (a) =>  {
+                     return  {"versionName": a.versionName, "Id": a.versionId, "guid" : a.versionGuid, "modified": new Date(a.modifiedDate),   "common": a.commonAncestorDate ? new Date( a.commonAncestorDate) : 'N/A' , "reconciled": a.reconcileDate ? new Date(a.reconcileDate) : 'N/A'};
+                     }) 
+
+        console.table(subs)
+        const rowCount = subs.length;
+        logger.info (`${numberWithCommas(rowCount)} rows returned.`)
+    },
+    
+
+    
+    "^versions --unreconciled$": async () => {
         const versions = await un.versions();
         if (versions.versions.length === 0) {
             logger.info("No versions found.")
             return;
         }
-        const subs = versions.versions.map( (a) =>  {
-                     return  {"versionName": a.versionName, "Id": a.versionId, "guid" : a.versionGuid, "created": a.creationDate, "modified": a.modifiedDate, "access": a.access};
-                     })
+ 
+        const subs = versions.versions.filter( a => a.reconcileDate != null ).sort ( (a,b)=> (a?.commonAncestorDate - b?.commonAncestorDate) ). map( (a) =>  {
+                     return  {"versionName": a.versionName, "Id": a.versionId, "guid" : a.versionGuid, "modified": new Date(a.modifiedDate),   "common": a.commonAncestorDate ? new Date( a.commonAncestorDate) : 'N/A' , "reconciled": a.reconcileDate ? new Date(a.reconcileDate) : 'N/A'};
+                     }) 
 
         console.table(subs)
         const rowCount = subs.length;
         logger.info (`${numberWithCommas(rowCount)} rows returned.`)
+    },
+
+    "^versions$": async () => {
+        const versions = await un.versions();
+        if (versions.versions.length === 0) {
+            logger.info("No versions found.")
+            return;
+        }
+        const subs = versions.versions.sort ( (a,b)=> (a?.commonAncestorDate - b?.commonAncestorDate) ). map( (a) =>  {
+                     return  {"versionName": a.versionName, "Id": a.versionId, "guid" : a.versionGuid, "modified": new Date(a.modifiedDate),   "common": a.commonAncestorDate ? new Date( a.commonAncestorDate) : 'N/A' , "reconciled": a.reconcileDate ? new Date(a.reconcileDate) : 'N/A'};
+                     }) 
+
+        console.table(subs)
+        const rowCount = subs.length;
+        logger.info (`${numberWithCommas(rowCount)} rows returned.`)
+    },
+
+    
+    "^versions --summary$": async () => {
+        /* 
+            total versions, 
+            total unreconciled versions 
+            total versions behind default
+        */
+        const versions = await un.versions();
+        if (versions.versions.length === 0) {
+            logger.info("No versions found.")
+            return;
+        }
+        
+        const summary = {
+            "totalVersions": 0,
+            "unreconciledVersions": 0,
+            "versionsBehindDefault": 0,
+            "defaultMoment": 0
+        }
+
+        const defaultVersion = versions.versions.filter(v => v.versionName.toString().toUpperCase() === "SDE.DEFAULT")[0];
+
+        summary.totalVersions = versions.versions.length;
+
+        summary.unreconciledVersions = versions.versions.filter( a => a.reconcileDate != null ).length
+
+        summary.versionsBehindDefault = versions.versions.filter( a => defaultVersion.modifiedDate > a?.commonAncestorDate ).length
+
+        summary.defaultMoment = (new Date(defaultVersion.modifiedDate)).toString()
+        console.table(summary) 
     },
 
 
@@ -258,8 +340,14 @@ const inputs = {
         if (inputParam != null && inputParam.length > 0)
             versionName = inputParam[0].replace("--version ", "")
 
-        const versions = await un.versions();
+        let versions = await un.versions();
+        versions.versions = versions.versions.filter ( v => v.versionName.toString().toUpperCase() == versionName.toUpperCase())
 
+        if (versions.versions.length ==0 ) 
+        {
+            logger.info (`Version not found ${versionName}`)
+            return;
+        }
         for (let v = 0; v < versions.versions.length; v++)
         {   
             if (versions.versions[v].versionName.toString().toUpperCase() === "SDE.DEFAULT") continue;
@@ -271,19 +359,55 @@ const inputs = {
                 break;
             }
            
-        }   
-        logger.info (`Reconciled ${versionName}.`)
+        }
+
+        logger.info (`Reconciled ${versionName}`)
     },
+
+
+    
+    "^reconcile --withpost --version": async (input) => {
+        
+        const inputParam = input.match(/--version .*/gm)
+        let versionName = null;
+        if (inputParam != null && inputParam.length > 0)
+            versionName = inputParam[0].replace("--version ", "")
+
+        let versions = await un.versions()
+          versions.versions = versions.versions.filter ( v => v.versionName.toString().toUpperCase() == versionName.toUpperCase())
+
+        if (versions.versions.length ==0 ) 
+        {
+            logger.info (`Version not found ${versionName}`)
+            return;
+        }
+      
+        for (let v = 0; v < versions.versions.length; v++)
+        {   
+            if (versions.versions[v].versionName.toString().toUpperCase() === "SDE.DEFAULT") continue;
+            if (versions.versions[v].versionName.toString().toUpperCase() == versionName.toUpperCase())  {
+                logger.info (`Reconciling and Posting version ${versions.versions[v].versionName} Common Ancestor ${new Date(versions.versions[v].commonAncestorDate)} ...`)
+
+                const result = await un.reconcile(versions.versions[v].versionGuid, true, false, true, false);
+                logger.info(JSON.stringify(result))
+                break;
+            }
+           
+        }   
+        logger.info (`Reconciled and Posted ${versionName}.`)
+    },
+
 
     
     "^reconcile --all$": async () => {
         
-        const versions = await un.versions();
+        let versions = await un.versions()
+        versions.versions = versions.versions.sort ( (a,b)=> (a?.commonAncestorDate - b?.commonAncestorDate) )
 
         for (let v = 0; v < versions.versions.length; v++)
         {   
             if (versions.versions[v].versionName.toString().toUpperCase() === "SDE.DEFAULT") continue;
-            logger.info (`Reconciling version ${versions.versions[v].versionName} ...`)
+                logger.info (`Reconciling version ${versions.versions[v].versionName} Common Ancestor ${new Date(versions.versions[v].commonAncestorDate)} ...`)
 
             const result = await un.reconcile(versions.versions[v].versionGuid, false, false, true, false);
             logger.info(JSON.stringify(result))
@@ -294,12 +418,13 @@ const inputs = {
 
     "^reconcile --all --async$": async () => {
         //async
-        const versions = await un.versions();
+        let versions = await un.versions()
+        versions.versions = versions.versions.sort ( (a,b)=> (a?.commonAncestorDate - b?.commonAncestorDate) )
 
         for (let v = 0; v < versions.versions.length; v++)
         {   
             if (versions.versions[v].versionName.toString().toUpperCase() === "SDE.DEFAULT") continue;
-            logger.info (`Reconciling version ${versions.versions[v].versionName} ...`)
+           logger.info (`Reconciling version ${versions.versions[v].versionName} Common Ancestor ${new Date(versions.versions[v].commonAncestorDate)} ...`)
 
             const result = await un.reconcile(versions.versions[v].versionGuid, false, false, true, true);
             logger.info(JSON.stringify(result))
@@ -308,7 +433,23 @@ const inputs = {
         logger.info (`Reconciled ${numberWithCommas(rowCount)} versions.`)
     },
 
-    
+      "^reconcile --all --withpost --async$": async () => {
+        //async
+        let versions = await un.versions()
+        versions.versions = versions.versions.sort ( (a,b)=> (a?.commonAncestorDate - b?.commonAncestorDate) )
+
+        for (let v = 0; v < versions.versions.length; v++)
+        {   
+            if (versions.versions[v].versionName.toString().toUpperCase() === "SDE.DEFAULT") continue;
+               logger.info (`Reconciling & Posting version ${versions.versions[v].versionName} Common Ancestor ${new Date(versions.versions[v].commonAncestorDate)} ...`)
+
+            const result = await un.reconcile(versions.versions[v].versionGuid, true, false, true, true);
+            logger.info(JSON.stringify(result))
+        }   
+        const rowCount = versions.versions.length;
+        logger.info (`Reconciled & Posted ${numberWithCommas(rowCount)} versions.`)
+    },
+
     "^versions --disconnect$": async () => {
         //disconnect all versions
         const versions = await un.versions();
@@ -1007,7 +1148,19 @@ const inputs = {
     },
 
 
-    
+    "^reconcilelogs --age" : async input => {
+        const topLogCount = 1000;
+        const pageSize = 10000
+
+        const inputParam = input.match(/--age .*/gm)
+        let mins = 30;  //query logs for the last 30 minutes
+        if (inputParam != null && inputParam.length > 0)
+            mins = inputParam[0].replace("--age ", "")
+
+      
+        reconcileLogs(mins,  parameters.service)
+        
+    },
     "^validatelogs --age": async input => {
       
         const topLogCount = 1000;
@@ -1551,6 +1704,88 @@ function decodeHTMLEntities (x) {
     const y =  x.replace(/&[a-zA-Z0-9#]+;/g, (match) => entities[match] || match); 
    return y
 }
+
+
+
+async function reconcileLogs (mins, service) {
+
+  
+parameters.service = service
+ 
+
+console.log(`Querying reconcile logs for ${parameters.service} for the last ${mins} minutes ...`)
+
+    //startTime is the most recent
+    //endTime is the oldest
+
+     
+ //page query the admin log , search for /applyEdits logs by methodname
+  let allMessages = await adminLog.query(mins, parameters.service, [102003,102024,102023], "", "DEBUG")
+
+ 
+      
+    //build out the dictionary, key is request id, value is another dictionary
+    const queryLogs = {}
+    //sort by time
+    allMessages = allMessages.sort ( (m1, m2) => m2.time - m1.time )
+    allMessages.forEach (m => {
+
+        if (!queryLogs[m.requestID])
+            queryLogs[m.requestID] = {"message": "Time,Method,Elapsed_ms,Message"}
+
+        queryLogs[m.requestID].message += "\r\n" + m.time + "," + m.methodName + "," + Math.round(m.elapsed*1000) + "," + m.message 
+
+        //get elapsed
+        //check for async (method GPReconcileVersionAsync::Execute)
+        //sync
+        //VersionManagementServer::HandleREST_ReconcileOperation
+        //message Returned moment: 
+        if (m.message.indexOf("Returned moment: ")> -1 && 
+        ( m.methodName.indexOf("VersionManagementServer::HandleREST_ReconcileOperation") > -1 ||
+         m.methodName.indexOf("GPReconcileVersionAsync::Execute") > -1 
+        ) 
+        )
+        {
+            queryLogs[m.requestID].elapsed = m.elapsed
+            queryLogs[m.requestID].source = m.source.replace(".MapServer", "")
+            queryLogs[m.requestID].user = m.user
+            queryLogs[m.requestID].time = m.time
+            queryLogs[m.requestID].requestID = m.requestID
+            queryLogs[m.requestID].methodName = m.methodName
+ 
+        }
+        
+        if (m.message.indexOf("EndReconcile;") > -1)
+        {
+            queryLogs[m.requestID].gdbVersion = m.message.replace("EndReconcile;","")
+   
+            
+        }
+
+        
+        
+    })
+
+    allMessages = []
+
+     Object.keys(queryLogs).forEach(k =>
+        {
+            const m = queryLogs[k]
+            if (m.methodName)
+                allMessages.push(m)
+              
+        })
+
+
+    
+  console.log ("Filtering messages...") 
+ 
+  allMessages = filterMessages(allMessages)
+  .sort( (m1,m2) => Math.round(m2.elapsed*1000) -Math.round(m1.elapsed*1000))
+  console.table(allMessages)
+ 
+}
+
 
 
 function printFishnet(fishnet) {

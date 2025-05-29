@@ -1,2 +1,2 @@
-arlogs --age 10
+versions  
 exit
