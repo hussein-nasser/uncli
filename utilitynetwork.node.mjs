@@ -1230,8 +1230,7 @@ export class UtilityNetwork {
                   subnetworkName: subnetworkName,
                   exportAcknowledgement: true,
                   allSubnetworksInTier: false,
-                  continueOnFailure: false,
-                  traceConfiguration: subnetworkDef,   
+                  continueOnFailure: false,  
                   async: async,
                   gdbVersion:this.gdbVersion,
                   resultTypes: JSON.stringify(resultTypes)

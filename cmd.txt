@@ -1,2 +1,2 @@
-versions  
+export subnetworks --deleted --folder c:\temp\
 exit
