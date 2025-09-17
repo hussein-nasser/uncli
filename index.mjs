@@ -7,7 +7,7 @@ import { AdminLog } from "./adminlog.mjs"
 import  logger  from "./logger.mjs"
 import  fetch  from "node-fetch"
 //update version
-let version = "0.0.83";
+let version = "0.0.85";
 const GENERATE_TOKEN_TIME_MIN = 30;
 
 let rl = null;
@@ -170,12 +170,15 @@ const inputs = {
             "topology --disable" : "Disable topology",
             "topology --enable" : "Enable topology",
             "topology --validate" : "Validate topology (full extent)",
+            "update subnetworks --subnetwork": "Update the input subnetwork synchronously",
             "update subnetworks --all": "Update all dirty subnetworks synchronously",
             "update subnetworks --deleted": "Update all deleted dirty subnetworks synchronously",
             "update subnetworks --all --async": "Update all dirty subnetworks asynchronously",          
             "export subnetworks --all [--folder]": "Export all subnetworks with ACK --folder where exported files are saved",
             "export subnetworks --new [--folder]": "Export all subnetworks with ACK that haven't been exported --folder where exported files are saved",
             "export subnetworks --deleted": "Export all subnetworks with ACK that are deleted ",
+            "export subnetworks --all [--resulttype]": "Export all subnetworks with ACK --resulttype is a json configuration",
+
             "updateisconnected": "Run update is connected ",
             "versions": "List all versions available to the current logged in user.",
             "versions --summary": "Summary of versions.",
@@ -184,6 +187,7 @@ const inputs = {
             "reconcile --version <version name>": "Reconcile the input version synchronously",
             "reconcile --withpost --version <version name>": "Reconcile & Post the input version synchronously, oldest common ancestor first",
             "reconcile --all": "Reconcile all versions available to the current user synchronously, oldest common ancestor first",
+            "reconcile --all --withpost": "Reconcile and post all versions available to the current user synchronously, oldest common ancestor first",
             "reconcile --all --withpost --async": "Reconcile and post all versions available to the current user asynchronously, oldest common ancestor first",
             "reconcile --all --async": "Reconcile all versions available to the current user asynchronously, oldest common ancestor first",
             "count": "Lists the number of rows in all feature layers and tables.",
@@ -276,7 +280,7 @@ const inputs = {
             return;
         }
  
-        const subs = versions.versions.filter( a => a.reconcileDate != null ).sort ( (a,b)=> (a?.commonAncestorDate - b?.commonAncestorDate) ). map( (a) =>  {
+        const subs = versions.versions.filter( a => a.reconcileDate == null ).sort ( (a,b)=> (a?.commonAncestorDate - b?.commonAncestorDate) ). map( (a) =>  {
                      return  {"versionName": a.versionName, "Id": a.versionId, "guid" : a.versionGuid, "modified": new Date(a.modifiedDate),   "common": a.commonAncestorDate ? new Date( a.commonAncestorDate) : 'N/A' , "reconciled": a.reconcileDate ? new Date(a.reconcileDate) : 'N/A'};
                      }) 
 
@@ -324,7 +328,7 @@ const inputs = {
 
         summary.totalVersions = versions.versions.length;
 
-        summary.unreconciledVersions = versions.versions.filter( a => a.reconcileDate != null ).length
+        summary.unreconciledVersions = versions.versions.filter( a => a.reconcileDate == null ).length
 
         summary.versionsBehindDefault = versions.versions.filter( a => defaultVersion.modifiedDate > a?.commonAncestorDate ).length
 
@@ -410,6 +414,24 @@ const inputs = {
                 logger.info (`Reconciling version ${versions.versions[v].versionName} Common Ancestor ${new Date(versions.versions[v].commonAncestorDate)} ...`)
 
             const result = await un.reconcile(versions.versions[v].versionGuid, false, false, true, false);
+            logger.info(JSON.stringify(result))
+        }   
+        const rowCount = versions.versions.length;
+        logger.info (`Reconciled ${numberWithCommas(rowCount)} versions.`)
+    },
+
+    
+    "^reconcile --all --withpost$": async () => {
+        
+        let versions = await un.versions()
+        versions.versions = versions.versions.sort ( (a,b)=> (a?.commonAncestorDate - b?.commonAncestorDate) )
+
+        for (let v = 0; v < versions.versions.length; v++)
+        {   
+            if (versions.versions[v].versionName.toString().toUpperCase() === "SDE.DEFAULT") continue;
+                logger.info (`Reconciling version ${versions.versions[v].versionName} Common Ancestor ${new Date(versions.versions[v].commonAncestorDate)} ...`)
+
+            const result = await un.reconcile(versions.versions[v].versionGuid, true, false, true, false);
             logger.info(JSON.stringify(result))
         }   
         const rowCount = versions.versions.length;
@@ -662,6 +684,40 @@ const inputs = {
         logger.info (`${numberWithCommas(rowCount)} rows returned.`)
     },
 
+
+    
+
+    
+    "^update subnetworks --subnetwork" : async (input) => {
+
+        
+        const inputParam = input.match(/--subnetwork .*/gm)
+        let subnetworkName = null;
+        if (inputParam != null && inputParam.length > 0)
+            subnetworkName = inputParam[0].replace("--subnetwork ", "")
+
+ 
+
+        let subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "1=1 AND subnetworkname = '" + subnetworkName + "'","domainnetworkname,tiername,subnetworkname");
+        logger.info(`Discovered ${subnetworks.features.length} subnetworks.`);
+        for (let i = 0;  i < subnetworks.features.length; i++) {
+            const f = subnetworks.features[i]
+            logger.info("Updating Subnetwork " + v(f.attributes,"subnetworkName"));
+            
+            const fromDate = new Date();
+              
+            const subnetworkResult = await un.updateSubnetworks(v(f.attributes,"domainNetworkName"), v(f.attributes,"tierName"), v(f.attributes,"subnetworkName"),false);
+            
+            //code
+
+            const toDate = new Date();
+            const timeEnable = toDate.getTime() - fromDate.getTime();
+            subnetworkResult.duration =  numberWithCommas(Math.round(timeEnable)) + " ms"
+            
+
+            logger.info(`Result ${JSON.stringify(subnetworkResult)}`)
+        }
+    },
     "^update subnetworks --deleted$" : async () => {
         logger.info("Querying all subnetworks that are dirty and deleted.");
         let subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty=1 and isdeleted=1","domainnetworkname,tiername,subnetworkname");
@@ -738,8 +794,8 @@ const inputs = {
             logger.info(`Result from submitting job ${JSON.stringify(subnetworkResult)}`)
         }
     },
-   "^export subnetworks --all --folder .*$|^export subnetworks --all$" : async input => {
- 
+   "^export subnetworks --all --folder .*$|^export subnetworks --all$|^export subnetworks --all --resulttype .*$" : async input => {
+  
         let subnetworks 
         let sort = "asc";
         if (input.indexOf("--desc") > 0) sort = "desc"
@@ -748,6 +804,27 @@ const inputs = {
         let inputDir = "Exported"
         if (file != null && file.length > 0)
              inputDir = file[0].replace("--folder ", "")
+
+        //default resulttype
+        let resultType = null;
+
+        const rt = input.match(/--resulttype .*/gm)
+        if (rt != null && v.length > 0)
+            resultType = rt[0].replace("--resulttype ", "")
+        
+        logger.info(resultType)
+
+        try
+        {
+            resultType = JSON.parse(resultType)
+        }
+        catch(ex)
+        {
+            logger.error("Can't parse resulttype" + ex)
+            return;
+        }
+
+        
         //create directory if doesn't exists
         if (!fs.existsSync(inputDir))  fs.mkdirSync(inputDir)
         let exportedSubnetworks = [];
@@ -769,7 +846,7 @@ const inputs = {
                 
                 const fromDate = new Date();
                 
-                const subnetworkResult = await un.exportSubnetworks(v(f.attributes,"domainNetworkName"), v(f.attributes,"tierName"), v(f.attributes,"subnetworkName"),false);
+                const subnetworkResult = await un.exportSubnetworks(v(f.attributes,"domainNetworkName"), v(f.attributes,"tierName"), v(f.attributes,"subnetworkName"),false, resultType);
                   
                 //code
                 exportedSubnetworks.push("'" + v(f.attributes,"subnetworkName") + "'")
@@ -791,10 +868,10 @@ const inputs = {
                 //although the response is json, its easier to treat it as text (handle error cases) since we will only write it to disk.
                 // if we want to do something with the response then make it json
                 const jsonExport = await subContent.text();
-                fs.writeFileSync(`${inputDir}/${subnetworkName}.json`, jsonExport)            
+                fs.writeFileSync(`${inputDir}/${v(f.attributes,"domainNetworkName")}_${v(f.attributes,"tierName")}_${subnetworkName}.json`, jsonExport)            
                
     
-                logger.info(`Result ${JSON.stringify(subnetworkResult)} written to file ${process.cwd()}/${inputDir}/${subnetworkName}.json`)
+                logger.info(`Result ${JSON.stringify(subnetworkResult)} written to file ${process.cwd()}/${inputDir}/${v(f.attributes,"domainNetworkName")}_${v(f.attributes,"tierName")}_${subnetworkName}.json`)
     
             }
         }
@@ -802,7 +879,55 @@ const inputs = {
        
     },
    
+ "^export subnetworks --all --async --folder .*$|^export subnetworks --all --async$|^export subnetworks --all --async --resulttype .*$" : async input => {
+ 
+        let subnetworks 
+        let sort = "asc";
+        if (input.indexOf("--desc") > 0) sort = "desc"
+        //create folder
+        const file = input.match(/--folder .*/gm)
+        let inputDir = "Exported"
+        if (file != null && file.length > 0)
+             inputDir = file[0].replace("--folder ", "")
 
+ 
+        //default resulttype
+        let resultType = null;
+        
+        const rt = input.match(/--resulttype .*/gm)
+        if (rt != null && v.length > 0)
+            resultType = rt[0].replace("--resulttype ", "")
+
+        logger.info(resultType)
+
+        //create directory if doesn't exists
+        if (!fs.existsSync(inputDir))  fs.mkdirSync(inputDir)
+        let exportedSubnetworks = [];
+
+        do {
+
+            let exportedSubnetworksWhereClause = ""
+            
+            if (exportedSubnetworks.length > 0 )
+                exportedSubnetworksWhereClause = " AND SUBNETWORKNAME NOT IN (" + exportedSubnetworks.join(",") + ")"
+ 
+            logger.info("Querying all subnetworks that are clean.");
+            subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty=0 " + exportedSubnetworksWhereClause,`domainnetworkname  ${sort},tiername ${sort},subnetworkname ${sort}`);
+            logger.info(`Discovered ${subnetworks.features.length} subnetworks that can be exported.`);
+            for (let i = 0;  i < subnetworks.features.length; i++) {
+                const f = subnetworks.features[i]
+                const subnetworkName = v(f.attributes,"subnetworkName")
+                logger.info("Exporting subnetworks " + subnetworkName);
+                 
+                
+                const subnetworkResult = await un.exportSubnetworks(v(f.attributes,"domainNetworkName"), v(f.attributes,"tierName"), v(f.attributes,"subnetworkName"),true);
+                logger.info(`Result from submitting job ${JSON.stringify(subnetworkResult)}`)
+
+            }
+        }
+        while (subnetworks?.features?.length > 0)
+       
+    },
     "^export subnetworks --new --folder .*$|^export subnetworks --new$" : async input => {
 
         //create folder
@@ -825,9 +950,11 @@ const inputs = {
             //fetch the json and write it to disk 
             const subContent = await fetch(subnetworkResult.url);
             const jsonExport = await subContent.text();
-            fs.writeFileSync(`${inputDir}/${subnetworkName}.json`, JSON.stringify(jsonExport))            
-
-            logger.info(`Result ${JSON.stringify(subnetworkResult)} written to file ${process.cwd()}/${inputDir}/${subnetworkName}.json`)
+            fs.writeFileSync(`${inputDir}/${v(f.attributes,"domainNetworkName")}_${v(f.attributes,"tierName")}_${subnetworkName}.json`, jsonExport)            
+               
+    
+            logger.info(`Result ${JSON.stringify(subnetworkResult)} written to file ${process.cwd()}/${inputDir}/${v(f.attributes,"domainNetworkName")}_${v(f.attributes,"tierName")}_${subnetworkName}.json`)
+    
         }
 
  
@@ -944,9 +1071,11 @@ const inputs = {
             //fetch the json and write it to disk 
             const subContent = await fetch(subnetworkResult.url);
             const jsonExport = await subContent.text();
-            fs.writeFileSync(`${inputDir}/${subnetworkName}.json`, JSON.stringify(jsonExport))            
-
-            logger.info(`Result ${JSON.stringify(subnetworkResult)} written to file ${process.cwd()}/${inputDir}/${subnetworkName}.json`)
+            fs.writeFileSync(`${inputDir}/${v(f.attributes,"domainNetworkName")}_${v(f.attributes,"tierName")}_${subnetworkName}.json`, jsonExport)            
+               
+    
+            logger.info(`Result ${JSON.stringify(subnetworkResult)} written to file ${process.cwd()}/${inputDir}/${v(f.attributes,"domainNetworkName")}_${v(f.attributes,"tierName")}_${subnetworkName}.json`)
+    
         }
 
  
