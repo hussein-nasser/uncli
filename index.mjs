@@ -172,6 +172,7 @@ const inputs = {
             "topology --validate" : "Validate topology (full extent)",
             "update subnetworks --subnetwork": "Update the input subnetwork synchronously",
             "update subnetworks --all": "Update all dirty subnetworks synchronously",
+            "update subnetworks --all --async": "Update all dirty subnetworks asynchronously",
             "update subnetworks --deleted": "Update all deleted dirty subnetworks synchronously",
             "update subnetworks --all --async": "Update all dirty subnetworks asynchronously",          
             "export subnetworks --all [--folder]": "Export all subnetworks with ACK --folder where exported files are saved",
@@ -1041,19 +1042,19 @@ const inputs = {
             logger.error(JSON.stringify(ex))
         }
     },
-    "^export subnetworks --deleted$" : async input => {
+    "^export subnetworks --deleted --folder" : async input => {
 
         //create folder
-        const file = input.match(/-f .*/gm)
+        const file = input.match(/--folder .*/gm)
         let inputDir = "Exported"
         if (file != null && file.length > 0)
-             inputDir = file[0].replace("-f ", "")
+             inputDir = file[0].replace("--folder ", "")
         //create directory if doesn't exists
         if (!fs.existsSync(inputDir))  fs.mkdirSync(inputDir)
 
 
         logger.info("Querying all subnetworks that are clean and deleted.");
-        let subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdirty = 0 and isdeleted=1");
+        let subnetworks = await un.queryDistinct(500002, "domainnetworkname,tiername,subnetworkname", "isdeleted=1", "subnetworkname");
         logger.info(`Discovered ${subnetworks.features.length} subnetworks that can be exported.`);
         for (let i = 0;  i < subnetworks.features.length; i++) {
             const f = subnetworks.features[i]
