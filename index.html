@@ -719,7 +719,7 @@ async function loadAttributeRules () {
  
         const arMessages = filterMessages(allMessages)
             .filter(m => m.message.indexOf("Attribute rule executed: ") > -1)
-            .map (m =>  JSON.parse(m.message.replace("Attribute rule executed: ", "")))
+            .map (m =>  decodeAndParseJSON(m.message.replace("Attribute rule executed: ", "")))
             .map( m => {
                 m["Elapsed Time (ms)"] =  Math.round(m["Elapsed Time"]*1000000)/1000
                // m["Arcade Evaluation Time:"] = Math.round(m["Arcade Evaluation Time:"]*1000,6)
@@ -1016,7 +1016,8 @@ console.log(`Querying applyEdits logs for ${parameters.service} for the last ${m
         if (m.message.indexOf("GraphicFeatureServer::HandleRESTRequest ## inputJSON ") > -1)
         {
             applyEditslogs[m.requestID].message = m.message.replace("GraphicFeatureServer::HandleRESTRequest ## inputJSON = ","")
-            const applyEditsPayload = JSON.parse(applyEditslogs[m.requestID].message)
+            applyEditslogs[m.requestID].message = decodeHTMLEntities(applyEditslogs[m.requestID].message)
+            const applyEditsPayload = decodeAndParseJSON(applyEditslogs[m.requestID].message)
             applyEditslogs[m.requestID].gdbVersion = applyEditsPayload.gdbVersion
             applyEditslogs[m.requestID].ids =  [...new Set(applyEditsPayload.edits.reduce ( (prev, cur) => {prev.push(cur.id); return prev}, []) )]; 
         }
@@ -1642,7 +1643,8 @@ console.log(`Querying query logs for ${parameters.service} for the last ${mins} 
         if (m.message.indexOf("GraphicFeatureServer::HandleRESTRequest ## inputJSON = ") > -1)
         {
             queryLogs[m.requestID].message = m.message.replace("GraphicFeatureServer::HandleRESTRequest ## inputJSON = ","")
-            const queryPayload = JSON.parse(queryLogs[m.requestID].message)
+            queryLogs[m.requestID].message = decodeHTMLEntities(queryLogs[m.requestID].message)
+            const queryPayload = decodeAndParseJSON(queryLogs[m.requestID].message)
             queryLogs[m.requestID].gdbVersion = queryPayload.gdbVersion
             queryLogs[m.requestID].moment = queryPayload.historicMoment
             queryLogs[m.requestID].methodName = m.methodName;
@@ -2142,6 +2144,12 @@ function numberWithCommas(x) {
             logRow.appendChild (cLog) 
             tblResult.appendChild(logRow)
         })
+    }
+
+
+    function decodeAndParseJSON (x) {
+          const y = decodeHTMLEntities(x);
+          return JSON.parse(y);
     }
 
     function decodeHTMLEntities (x) {

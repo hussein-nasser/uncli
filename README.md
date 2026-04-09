@@ -79,8 +79,9 @@ export subnetworks --new
 > uncli --portal https://utilitynetwork.esri.com/portal --service NapervilleElectric_SQLServer --user tester --password tester.108 --file commands.txt --verify true
 
 ## Server Log web parser
-This tool also provides a way to parse server logs and view them for each utility network and geodatabase function
+This tool also provides a way to parse server logs and view them for each utility network and geodatabase functions. (Note you do not need to install nodejs for the web parser)
 
+### IIS
 To install on IIS follow these steps: This server assume your machine name where the Webadaptor lives is `utilitynetwork.esri.com` 
 
 - Login to machine where you have the webadaptor
@@ -104,5 +105,21 @@ let parameters = {
         "referer": "",
         "server": undefined
     }
-    ```
+```
 - Save the HTML and then visit `https://utilitynetwork.esri.com/log` put in your username and password and login to use the parser
+
+
+### Tomcat or any other similar Webservers
+-Create a folder under tomcat/webapps/ call it log 
+-Then copy the content there. 
+-Then go to /home/tomcat/conf/web.xml 
+-And add this entry if doesn’t exist 
+ ```xml
+    <mime-mapping>
+        <extension>mjs</extension>
+        <mime-type>text/javascript</mime-type>
+    </mime-mapping>
+ ```
+
+-Restart tomcat and visit the page/log should work
+
