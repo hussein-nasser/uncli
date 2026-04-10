@@ -54,7 +54,7 @@
         <td>Method Name</td>
         <td><input id = 'txtMethodName' type = 'text'></td>
         <td>RequestID</td>
-        <td colspan =3><input id = 'txtRequestId' type = 'text'></td>
+        <td colspan =3><input id = 'txtRequestId' type = 'text'  style="width:250px"></td>
     </tr>
 </table>
 
@@ -77,6 +77,7 @@
         
     </tr>
     <tr><td colspan=9><small>Elapsed time is in minutes:seconds:milliseconds</small></td></tr>
+    <tr><td colspan=9><small>To capture the logs effectively, enable debug logging from server manager, login as admin, run the operation (e.g. edit in Pro) and click the corresponding logs to load.</small></td></tr>
     </table>
 
     <table id = 'tblResult' border =1 cellpadding = 4 cellspacing = 4 style="text-align:left">
@@ -241,7 +242,9 @@
 
                 x = /Moment:.*\r\n/.exec(m.message);
                 if (x && x.length > 0) newMessage.moment = x[0].replace("Moment:", "").replace("\r\n", "") * 1000000
-   
+                
+                x = /Moment:\s*([\d.]+)/.exec(m.message);
+                if (x) newMessage.moment = parseFloat(x[1]) * 1000000;
  
             }
             catch(ex){
@@ -381,8 +384,15 @@
                 let x ;
                 x = /Extent:.*\r\n/.exec(m.message);
                 if (x && x.length > 0) m.extent = x[0].replace("Extent:", "").replace("\r\n", "")
+
+                x = /"extent":\{[^}]+\}/.exec(m.message);
+                if (x) m.extent = x[0].replace(`"extent":`,"")
+
                 x = /Version name:.*\r\n/.exec(m.message);
                 if (x && x.length > 0) m.versionName = x[0].replace("Version name:", "").replace("\r\n", "")
+
+                x = /Version name:(.*)/.exec(m.message);
+                if (x) m.versionName = x[1].trim();
 
                 let re = new RegExp(`Network built. [-+]?([0-9]*\\.[0-9]+|[0-9]+) seconds \\([-+]?([0-9]*\\.[0-9]+|[0-9]+) total\\)`)
                 let res = re.exec(m.message)
@@ -512,6 +522,7 @@
 
         const cRequestId = document.createElement("th");
         cRequestId.textContent = "RequestId"
+ 
         const cLog = document.createElement("th");
         cLog.textContent = "Full Log"
 
@@ -549,6 +560,12 @@
 
             const cRequestId = document.createElement("td");
             cRequestId.textContent = m.requestID;
+            cRequestId.style.color = "blue";
+            cRequestId.style.textDecoration = "underline";
+            cRequestId.style.cursor = "pointer";
+            cRequestId.style.fontOpticalSizing
+            cRequestId.addEventListener("click", e=> viewRawLogs( m.requestID ) );
+
             const cLog = document.createElement("td");
             cLog.textContent = "..."
             cLog.fullLog = m.message;
@@ -680,6 +697,12 @@ async function loadUpdateSubnetworkLogs () {
             cSubnetworkName.textContent = m.subnetworkName
             const cRequestId = document.createElement("td");
             cRequestId.textContent = m.requestID
+            cRequestId.style.color = "blue";
+            cRequestId.style.textDecoration = "underline";
+            cRequestId.style.cursor = "pointer";
+            cRequestId.style.fontOpticalSizing
+            cRequestId.addEventListener("click", e=> viewRawLogs( m.requestID ) );
+
             const cLog = document.createElement("td");
             cLog.textContent = "..."
             cLog.fullLog = m.message;
@@ -2442,6 +2465,14 @@ function numberWithCommas(x) {
             
             allMessages = allMessages.concat(jsonRes.logMessages.filter(m => m.message.indexOf(messageFilter) > -1 && m.methodName.indexOf(methodFilter) > -1))
         }
+        //DECODE html for all messages.
+        logger.info(`Decoding HTML entities ${allMessages.length}`);
+
+        allMessages = allMessages.map(m=> {  
+            m.message = decodeHTMLEntities(m.message)
+            return m
+        })
+
         logger.info(`Completed aggregation total messages ${allMessages.length}`);
 
         return allMessages
