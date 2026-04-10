@@ -69,6 +69,7 @@
             <button id = 'btnApplyEditsLogs'>ApplyEdits Logs</button>
             <button id = 'btnQueryLogs'>Query Logs</button>
             <button id = 'btnReconcileLogs'>Reconcile Logs</button>
+            <button id = 'btnstartEditingLogs'>StartEditing Logs</button>
             <button id = 'btnstopEditingLogs'>StopEditing Logs</button>
             <button id = 'btnWaitLogs'>Startup and Wait Logs</button>
             <button id = 'btnDownloadLogs'>Raw Logs</button>
@@ -170,6 +171,7 @@
         document.getElementById("btnDownloadLogs").disabled = false 
         document.getElementById("btnReconcileLogs").disabled = false 
         document.getElementById("btnstopEditingLogs").disabled = false 
+        document.getElementById("btnstartEditingLogs").disabled = false 
         document.getElementById("btnWaitLogs").disabled = false 
         
 
@@ -1067,6 +1069,13 @@ console.log(`Querying applyEdits logs for ${parameters.service} for the last ${m
             const cRequestId = document.createElement("td");
             cRequestId.textContent = m.requestID
 
+            cRequestId.style.color = "blue";
+            cRequestId.style.textDecoration = "underline";
+            cRequestId.style.cursor = "pointer";
+            cRequestId.style.fontOpticalSizing
+            cRequestId.addEventListener("click", e=> viewRawLogs( m.requestID ) );
+
+
             const cLog = document.createElement("td");
             const cLogText = document.createElement("input")
             cLogText.type = "text"
@@ -1098,6 +1107,7 @@ console.log(`Querying applyEdits logs for ${parameters.service} for the last ${m
 
 async function stopEditingLogs () {
 
+    
 //build table
 const tblResult = document.getElementById("tblResult");
 //clear
@@ -1110,7 +1120,7 @@ parameters.service = cmbService.options[cmbService.selectedIndex].text
 let mins = document.getElementById("txtAge").value  //query logs for the last 30 minutes
 
 
-console.log(`Querying stop editing logs for ${parameters.service} for the last ${mins} minutes ...`)
+console.log(`Querying start editing logs for ${parameters.service} for the last ${mins} minutes ...`)
 
     //startTime is the most recent
     //endTime is the oldest
@@ -1159,20 +1169,22 @@ console.log(`Querying stop editing logs for ${parameters.service} for the last $
     const queryLogs = {}
     //sort by time
     allMessages = allMessages.sort ( (m1, m2) => m2.time - m1.time )
+   // allMessages = allMessages.filter( m => m.methodName.indexOf("Geodatabase.FeatureDataset.StartEditing") > -1   )
     allMessages.forEach (m => {
 
         if (!queryLogs[m.requestID])
             queryLogs[m.requestID] = {"message": "Time,Method,Elapsed_ms,Message"}
 
-        queryLogs[m.requestID].message += "\r\n" + m.time + "," + m.methodName + "," + Math.round(m.elapsed*1000) + "," + m.message 
+        if (m.methodName.indexOf("Geodatabase.FeatureDataset.StopEditing") > -1)
+            queryLogs[m.requestID].message += "\r\n" + m.time + "," + m.methodName + "," + Math.round(m.elapsed*1000) + "," + m.message 
 
         //get elapsed
         //check for async (method GPReconcileVersionAsync::Execute)
         //sync
         //VersionManagementServer::HandleREST_ReconcileOperation
         //message Returned moment: 
-        if  ( m.methodName.indexOf("VersionManagementServer::HandleREST_StopEditingOperation") > -1  
-           && m.message.indexOf("End StopEditing") > -1
+        if  ( m.methodName.indexOf("Geodatabase.FeatureDataset.StopEditing") > -1  
+           && m.message.indexOf("Starting editing") > -1
         )
         {
             queryLogs[m.requestID].elapsed = m.elapsed
@@ -1181,13 +1193,13 @@ console.log(`Querying stop editing logs for ${parameters.service} for the last $
             queryLogs[m.requestID].time = m.time
             queryLogs[m.requestID].requestID = m.requestID
             queryLogs[m.requestID].methodName = m.methodName.replace("VersionManagementServer::HandleREST_","")
- 
+            queryLogs[m.requestID].textMessage = m.message 
         }
         
         if (m.message.indexOf("In WorkspaceInfo::GetVersionedWorkspaceInfo : Cache hit for versionOrBranchName=") > -1)
         {   
-            let v =  m.message.replace(": In WorkspaceInfo::GetVersionedWorkspaceInfo : Cache hit for versionOrBranchName=","")
-            v = v.substr(v.indexOf("{"))
+            let v =  m.message.replace(" In WorkspaceInfo::GetVersionedWorkspaceInfo : Cache hit for versionOrBranchName=","")
+            v = v.substr(v.indexOf(":")+1)
             queryLogs[m.requestID].gdbVersion =v
     
         }
@@ -1196,6 +1208,7 @@ console.log(`Querying stop editing logs for ${parameters.service} for the last $
         
     })
 
+    /*
     allMessages = []
 
      Object.keys(queryLogs).forEach(k =>
@@ -1206,14 +1219,17 @@ console.log(`Querying stop editing logs for ${parameters.service} for the last $
               
         })
 
-
+*/
     
   console.log ("Filtering messages...") 
- 
+  allMessages = allMessages.filter( m => m.methodName.indexOf("Geodatabase.FeatureDataset.StopEditing") > -1   )
+
   allMessages = filterMessages(allMessages)
   .sort( (m1,m2) => Math.round(m2.elapsed*1000) -Math.round(m1.elapsed*1000))
 
   allMessages.forEach (m => {  
+
+        
             const logRow = document.createElement("tr");
   
             const cService = document.createElement("th");
@@ -1226,21 +1242,27 @@ console.log(`Querying stop editing logs for ${parameters.service} for the last $
             cUser.textContent = m.user
 
             const cVersion = document.createElement("td");
-            cVersion.textContent = m.gdbVersion 
+            cVersion.textContent =  queryLogs[m.requestID].gdbVersion
            
             const cMethodName = document.createElement("td");
             cMethodName.textContent = m.methodName         
 
             const cRequestId = document.createElement("td");
-            cRequestId.textContent = m.requestID 
-  
+            cRequestId.textContent = m.requestID
+
+            cRequestId.style.color = "blue";
+            cRequestId.style.textDecoration = "underline";
+            cRequestId.style.cursor = "pointer";
+            cRequestId.style.fontOpticalSizing
+            cRequestId.addEventListener("click", e=> viewRawLogs( m.requestID ) );
+
             const cTotalTime = document.createElement("td");
             cTotalTime.textContent =  msToMinSecMs(m.elapsed*1000 )
             const cLog = document.createElement("td");
-            cLog.textContent = "..."
-            cLog.title = "Click to copy full stopediting log"
-            cLog.fullLog = m.message;
-            cLog.addEventListener("click", e=> {navigator.clipboard.writeText(e.target.fullLog); alert("Copied to clipboard")})
+            cLog.textContent = m.message
+           // cLog.title = "Click to copy full startediting log"
+           // cLog.fullLog = m.message;
+           // cLog.addEventListener("click", e=> {navigator.clipboard.writeText(e.target.fullLog); alert("Copied to clipboard")})
         
             //cLog.fullLog = m.payLoad;
             //cLog.title = m.payLoad + "\nClick to copy"
@@ -1265,6 +1287,197 @@ console.log(`Querying stop editing logs for ${parameters.service} for the last $
 }
 
 
+
+
+
+async function viewRawLogs(requestId){
+
+    const txtRequestId =  document.getElementById("txtRequestId")
+    txtRequestId.value = requestId;
+    document.getElementById("btnDownloadLogs").click();
+
+    
+}
+
+
+async function startEditingLogs () {
+
+//build table
+const tblResult = document.getElementById("tblResult");
+//clear
+while(tblResult.firstChild) tblResult.removeChild(tblResult.firstChild)
+    
+
+parameters.service = cmbService.options[cmbService.selectedIndex].text
+
+
+let mins = document.getElementById("txtAge").value  //query logs for the last 30 minutes
+
+
+console.log(`Querying start editing logs for ${parameters.service} for the last ${mins} minutes ...`)
+
+    //startTime is the most recent
+    //endTime is the oldest
+
+     
+ //page query the admin log , search for /stopediting logs by methodname
+  let allMessages = await adminLogQueryWithPaging(mins, parameters.service, [102003,17003], "", "DEBUG")
+
+
+  while(tblResult.firstChild) tblResult.removeChild(tblResult.firstChild)
+
+    let i =0;
+    
+    const header = document.createElement("tr");
+    const cService = document.createElement("th");
+    cService.textContent = "Source"
+    const cTime = document.createElement("th");
+    cTime.textContent = "Time"
+    const cUser = document.createElement("th");
+    cUser.textContent = "User"
+    const cVersion = document.createElement("th");
+    cVersion.textContent = "Version"
+    const cMethodName = document.createElement("th");
+    cMethodName.textContent = "MethodName"
+    const cRequestId = document.createElement("th");
+    cRequestId.textContent = "RequestId"
+    const cTotalTime = document.createElement("th");
+    cTotalTime.title  = "Total time startEditing took"
+    cTotalTime.textContent = "Total Time"
+ 
+
+    const cLog = document.createElement("th");
+    cLog.textContent = "StartEditing details"
+    header.appendChild (cService)
+    header.appendChild (cTime)
+    header.appendChild (cUser)
+    header.appendChild (cVersion)
+    header.appendChild (cMethodName)
+    header.appendChild (cRequestId)
+    header.appendChild (cTotalTime)
+ 
+    header.appendChild (cLog) 
+    tblResult.appendChild(header)
+
+    //build out the dictionary, key is request id, value is another dictionary
+    const queryLogs = {}
+    //sort by time
+    allMessages = allMessages.sort ( (m1, m2) => m2.time - m1.time )
+   // allMessages = allMessages.filter( m => m.methodName.indexOf("Geodatabase.FeatureDataset.StartEditing") > -1   )
+    allMessages.forEach (m => {
+
+        if (!queryLogs[m.requestID])
+            queryLogs[m.requestID] = {"message": "Time,Method,Elapsed_ms,Message"}
+
+        if (m.methodName.indexOf("Geodatabase.FeatureDataset.StartEditing") > -1)
+            queryLogs[m.requestID].message += "\r\n" + m.time + "," + m.methodName + "," + Math.round(m.elapsed*1000) + "," + m.message 
+
+        //get elapsed
+        //check for async (method GPReconcileVersionAsync::Execute)
+        //sync
+        //VersionManagementServer::HandleREST_ReconcileOperation
+        //message Returned moment: 
+        if  ( m.methodName.indexOf("Geodatabase.FeatureDataset.StartEditing") > -1  
+           && m.message.indexOf("Starting editing") > -1
+        )
+        {
+            queryLogs[m.requestID].elapsed = m.elapsed
+            queryLogs[m.requestID].source = m.source.replace(".MapServer", "")
+            queryLogs[m.requestID].user = m.user
+            queryLogs[m.requestID].time = m.time
+            queryLogs[m.requestID].requestID = m.requestID
+            queryLogs[m.requestID].methodName = m.methodName.replace("VersionManagementServer::HandleREST_","")
+            queryLogs[m.requestID].textMessage = m.message 
+        }
+        
+        if (m.message.indexOf("In WorkspaceInfo::GetVersionedWorkspaceInfo : Cache hit for versionOrBranchName=") > -1)
+        {   
+            let v =  m.message.replace(" In WorkspaceInfo::GetVersionedWorkspaceInfo : Cache hit for versionOrBranchName=","")
+            v = v.substr(v.indexOf(":")+1)
+            queryLogs[m.requestID].gdbVersion =v
+    
+        }
+
+        
+        
+    })
+
+    /*
+    allMessages = []
+
+     Object.keys(queryLogs).forEach(k =>
+        {
+            const m = queryLogs[k]
+            if (m.methodName)
+                allMessages.push(m)
+              
+        })
+
+*/
+    
+  console.log ("Filtering messages...") 
+  allMessages = allMessages.filter( m => m.methodName.indexOf("Geodatabase.FeatureDataset.StartEditing") > -1   )
+
+  allMessages = filterMessages(allMessages)
+  .sort( (m1,m2) => Math.round(m2.elapsed*1000) -Math.round(m1.elapsed*1000))
+
+  allMessages.forEach (m => {  
+
+        
+            const logRow = document.createElement("tr");
+  
+            const cService = document.createElement("th");
+            cService.textContent = m.source
+
+            const cTime = document.createElement("td");
+            cTime.textContent =  new Date(m.time).toLocaleString()
+
+            const cUser = document.createElement("td");
+            cUser.textContent = m.user
+
+            const cVersion = document.createElement("td");
+            cVersion.textContent =  queryLogs[m.requestID].gdbVersion
+           
+            const cMethodName = document.createElement("td");
+            cMethodName.textContent = m.methodName         
+
+            const cRequestId = document.createElement("td");
+            cRequestId.textContent = m.requestID 
+            cRequestId.style.color = "blue";
+            cRequestId.style.textDecoration = "underline";
+            cRequestId.style.cursor = "pointer";
+            cRequestId.style.fontOpticalSizing
+            cRequestId.addEventListener("click", e=> viewRawLogs( m.requestID ) );
+
+            const cTotalTime = document.createElement("td");
+            cTotalTime.textContent =  msToMinSecMs(m.elapsed*1000 )
+            const cLog = document.createElement("td");
+            cLog.textContent = m.message
+           // cLog.title = "Click to copy full startediting log"
+           // cLog.fullLog = m.message;
+           // cLog.addEventListener("click", e=> {navigator.clipboard.writeText(e.target.fullLog); alert("Copied to clipboard")})
+        
+            //cLog.fullLog = m.payLoad;
+            //cLog.title = m.payLoad + "\nClick to copy"
+           // cLog.addEventListener("click", e=> {navigator.clipboard.writeText(e.target.fullLog); e.target.selectionStart = 0; e.target.selectionEnd = e.target.value.length;
+            //    alert("Copied to clipboard")  })
+            logRow.appendChild (cService)
+            logRow.appendChild (cTime)
+            logRow.appendChild (cUser)
+            logRow.appendChild (cVersion)
+            logRow.appendChild (cMethodName)
+            logRow.appendChild (cRequestId)
+            logRow.appendChild (cTotalTime)
+ 
+            logRow.appendChild (cLog) 
+            tblResult.appendChild(logRow)
+  });
+  
+    addCSV(allMessages)
+
+
+
+}
 
 
 
@@ -1944,6 +2157,9 @@ function numberWithCommas(x) {
     btnstopEditingLogs.disabled = true
 
 
+    const btnstartEditingLogs = document.getElementById("btnstartEditingLogs");
+    btnstartEditingLogs.addEventListener("click", e => startEditingLogs())
+    btnstartEditingLogs.disabled = true
     
     const btnWait = document.getElementById("btnWaitLogs");
     btnWait.addEventListener("click", e => waitLogs())
