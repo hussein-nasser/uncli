@@ -7,7 +7,7 @@ import { AdminLog } from "./adminlog.mjs"
 import  logger  from "./logger.mjs"
 import  fetch  from "node-fetch"
 //update version
-let version = "0.0.86";
+let version = "0.0.87";
 const GENERATE_TOKEN_TIME_MIN = 30;
 
 let rl = null;
@@ -1066,8 +1066,11 @@ const inputs = {
         logger.info (`${numberWithCommas(rowCount)} subnetworks returned.`)
         for (let i = 0; i < subs.length ; i++)
         {
+            
             const fromDate = new Date();
              const subnetworkName = v(subs[i],"subnetworkname")
+            try{
+
             logger.info(`Tracing subnetwork ${subnetworkName}`);
             const result = await un.subnetworkTraceSimple(subnetworkName)
             if (result == null) {
@@ -1080,6 +1083,11 @@ const inputs = {
             newResult.duration =  numberWithCommas(Math.round(timeRun)) + " ms"
             newResult.elementsCount = result.traceResults.elements.length;
             console.table(newResult)
+            }
+            catch (ex)
+            {
+                 logger.info(`Failed to trace ${subnetworkName} ${ex}`); 
+            }
 
         } 
 
