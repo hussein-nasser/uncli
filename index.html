@@ -266,8 +266,6 @@
         cTime.textContent = "Time"
         const cUser = document.createElement("th");
         cUser.textContent = "User"
-        const cMethod = document.createElement("th");
-        cMethod.textContent = "Method"
         const cVersion = document.createElement("th");
         cVersion.textContent = "Version"
         const cMoment = document.createElement("th");
@@ -278,6 +276,8 @@
         cTraceType.textContent = "Trace Type"
         const cTraceTime = document.createElement("th");
         cTraceTime.textContent = "Trace Time"
+        const cReadAmp = document.createElement("th");
+        cReadAmp.textContent = "Elements / Pages"
         const cRequestId = document.createElement("th");
         cRequestId.textContent = "RequestId"
         const cLog = document.createElement("th");
@@ -285,11 +285,11 @@
         header.appendChild (cService)
         header.appendChild (cTime)
         header.appendChild (cUser)
-        header.appendChild (cMethod)
         header.appendChild (cVersion)
         header.appendChild (cMoment)
         header.appendChild (cTraceType)
         header.appendChild (cTraceTime)
+        header.appendChild (cReadAmp)
         header.appendChild (cRequestId)
         header.appendChild (cElapsedMS)
 
@@ -311,6 +311,8 @@
             cTraceType.textContent = m.traceType
             const cTraceTime = document.createElement("td");
             cTraceTime.textContent = msToMinSecMs(m.traceTime)
+            const cReadAmp = document.createElement("td");
+            cReadAmp.textContent = ParseTraceReadAmplication(m.message)
             const cRequestId = document.createElement("td");
             cRequestId.textContent = m.requestID
             const cVersion = document.createElement("td");
@@ -324,11 +326,11 @@
             logRow.appendChild (cService)
             logRow.appendChild (cTime)
             logRow.appendChild (cUser)
-            logRow.appendChild (cMethod)
             logRow.appendChild (cVersion)
             logRow.appendChild (cMoment)
             logRow.appendChild (cTraceType)
             logRow.appendChild (cTraceTime)
+            logRow.appendChild (cReadAmp)
             logRow.appendChild (cRequestId)
             logRow.appendChild (cElapsedMS)
 
@@ -2477,6 +2479,58 @@ function numberWithCommas(x) {
 
         return allMessages
 
+    }
+
+
+
+    function ParseTraceReadAmplication (traceLog) {
+        
+        try {
+
+    
+        const text = traceLog;
+        const traversedMatch = text.match(/Total\s+#\s*Traversed\s+Elements:\s*([\d,]+)/i);
+
+        const traversedElements = traversedMatch
+        ? parseInt(traversedMatch[1].replace(/,/g, ''), 10)
+        : 0;
+        
+        let minPagesRead = traversedElements / 1024;
+        if (minPagesRead <= 1024) minPagesRead =1;
+        
+
+        // -------------------------------------------------------------------
+        // Sum all Cache misses values
+        // -------------------------------------------------------------------
+        let actualPagesRead = 0;
+
+        // Match rows that begin with a table name and then a cache miss number
+        const cacheMissRegex =
+        /^\s*[A-Za-z0-9:#()\-\s]+?\s+(\d+)\s+\d+\s+\d+\s+\d+\s+\d+/gm;
+
+        let match;
+
+        while ((match = cacheMissRegex.exec(text)) !== null) {
+        actualPagesRead += parseInt(match[1], 10);
+        }
+
+
+        let readAmp;
+        if (actualPagesRead < minPagesRead)
+            readAmp= "0%"
+        else
+            readAmp=  Math.floor((actualPagesRead-minPagesRead)/actualPagesRead  *100) + "%"
+
+        readAmp= numberWithCommas(traversedElements) + " / " + numberWithCommas(actualPagesRead)
+
+        console.log(`traversedElements = ${traversedElements}, minPagesRead = ${minPagesRead}, actualPagesRead =  ${actualPagesRead} ,, readAmp=${readAmp}` );
+
+        return readAmp
+      }
+            catch(ex){
+                console.error(ex)
+                return "n/a";
+            }
     }
 
 
