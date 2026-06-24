@@ -1,2 +1,2 @@
-versions  
+trace --all
 exit

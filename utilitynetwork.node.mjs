@@ -280,6 +280,7 @@ export class UtilityNetwork {
                 orderByFields: "DOMAINNETWORKNAME, TIERNAME, SUBNETWORKNAME",
                 gdbVersion:this.gdbVersion,
                 returnDistinctValues: true,
+                resultRecordCount: 20000,
                 f: "json"
             }
             

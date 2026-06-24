@@ -7,7 +7,7 @@ import { AdminLog } from "./adminlog.mjs"
 import  logger  from "./logger.mjs"
 import  fetch  from "node-fetch"
 //update version
-let version = "0.0.85";
+let version = "0.0.86";
 const GENERATE_TOKEN_TIME_MIN = 30;
 
 let rl = null;
@@ -166,6 +166,7 @@ const inputs = {
             "subnetworks --deleted" : "Lists dirty and deleted subnetworks",
             "evaluate" : "Evaluate in parallel",
             "trace --subnetwork <subnetwork>": "Traces input subnetwork and returns the time and number of elements returned .",
+            "trace --all": "Traces all subnetworks.",
             "topology" : "Displays the topology status",
             "topology --disable" : "Disable topology",
             "topology --enable" : "Enable topology",
@@ -1042,6 +1043,55 @@ const inputs = {
             logger.error(JSON.stringify(ex))
         }
     },
+
+
+
+     "^trace --all": async input => {
+        //get subnetwork name
+        try {
+
+             
+        const inputDir= "Exported"
+        let full = true; 
+
+       
+        const subnetworks = await un.getSubnetworks();
+        if (subnetworks.features.length === 0) {
+            logger.info("No dirty subnetworks found.")
+            return;
+        }
+
+        const subs = subnetworks.features.map(a => a.attributes)
+        const rowCount = subs.length;
+        logger.info (`${numberWithCommas(rowCount)} subnetworks returned.`)
+        for (let i = 0; i < subs.length ; i++)
+        {
+            const fromDate = new Date();
+             const subnetworkName = v(subs[i],"subnetworkname")
+            logger.info(`Tracing subnetwork ${subnetworkName}`);
+            const result = await un.subnetworkTraceSimple(subnetworkName)
+            if (result == null) {
+                logger.info(`Subnetwork ${subnetworkName} doesn't exist`);
+                return null;
+            }
+            const toDate = new Date();
+            const timeRun = toDate.getTime() - fromDate.getTime();
+            const newResult = {}
+            newResult.duration =  numberWithCommas(Math.round(timeRun)) + " ms"
+            newResult.elementsCount = result.traceResults.elements.length;
+            console.table(newResult)
+
+        } 
+
+         
+  
+    }
+        catch(ex){
+            logger.error(JSON.stringify(ex))
+        }
+    },
+
+
     "^export subnetworks --deleted --folder" : async input => {
 
         //create folder
